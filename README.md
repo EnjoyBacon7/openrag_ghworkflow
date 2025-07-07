@@ -198,7 +198,7 @@ docker compose up --build -d  # Use 'down' to stop
 # Start with CPU
 docker compose --profile cpu up --build -d # Use '--profile cpu down' to stop it properly
 ```
->[!TIPS]
+> \[!TIPS]
 > For quick testing on CPU, you can reduce computational load by adjusting the following settings in the **`.env`** file:
 
 ```bash
@@ -208,7 +208,7 @@ RERANKER_ENABLED=false # to disable ranking which is a costly operation
 >[!WARNING]
 > These adjustments may affect performance and result quality but are appropriate for lightweight testing.
 
->[!INFO]
+> \[!INFO]
 > The initial launch is longer due to the installation of required dependencies.
 
 Once the app is up and running, visit `http://localhost:APP_PORT` or `http:X.X.X.X:APP_PORT` to access via:
