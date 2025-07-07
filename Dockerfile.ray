@@ -41,10 +41,10 @@ RUN chmod +x /app/entrypoint.sh
 COPY ray-cluster/ /app/ray-cluster/
 
 # Set workdir for source code
-WORKDIR /app/ragondin
+WORKDIR /app/openrag
 
 # Copy source code
-COPY ragondin/ .
+COPY openrag/ .
 
 # Copy assests & config
 COPY public/ /app/public/
@@ -53,4 +53,4 @@ COPY .hydra_config/ /app/.hydra_config/
 
 RUN apt install -y 
 
-ENV PYTHONPATH=/app/ragondin/
+ENV PYTHONPATH=/app/openrag/

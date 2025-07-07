@@ -30,7 +30,7 @@ FORBIDDEN_CHARS_IN_FILE_ID = set("/")  # set('"<>#%{}|\\^`[]')
 LOG_FILE = Path(config.paths.log_dir or "logs") / "app.json"
 
 # Get the TaskStateManager actor
-task_state_manager = ray.get_actor("TaskStateManager", namespace="ragondin")
+task_state_manager = ray.get_actor("TaskStateManager", namespace="openrag")
 
 # Create an APIRouter instance
 router = APIRouter()

@@ -34,9 +34,7 @@ class DocSerializer:
         self.kwargs = kwargs
         self.kwargs["config"] = self.config
         self.save_markdown = self.config.loader.get("save_markdown", False)
-        self.task_state_manager = ray.get_actor(
-            "TaskStateManager", namespace="ragondin"
-        )
+        self.task_state_manager = ray.get_actor("TaskStateManager", namespace="openrag")
         # Initialize loader classes:
         self.loader_classes = get_loader_classes(config=self.config)
         self.logger.info("DocSerializer initialized.")

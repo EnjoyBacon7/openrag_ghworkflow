@@ -45,20 +45,20 @@ config = load_config()
 
 # Initialize marker if needed
 if config.loader.file_loaders.get("pdf") == "MarkerLoader":
-    marker = MarkerPool.options(name="MarkerPool", namespace="ragondin").remote()
+    marker = MarkerPool.options(name="MarkerPool", namespace="openrag").remote()
 
 # Create task state manager actor
 task_state_manager = TaskStateManager.options(
-    name="TaskStateManager", lifetime="detached", namespace="ragondin"
+    name="TaskStateManager", lifetime="detached", namespace="openrag"
 ).remote()
 
 # Create document serializer actor
 serializer_queue = SerializerQueue.options(
-    name="SerializerQueue", namespace="ragondin"
+    name="SerializerQueue", namespace="openrag"
 ).remote()
 
 # Create global indexer supervisor actor
-indexer = Indexer.options(name="Indexer", namespace="ragondin").remote()
+indexer = Indexer.options(name="Indexer", namespace="openrag").remote()
 
 # Create vectordb instance
 vectordb: ABCVectorDB = VDBProxy(

@@ -184,7 +184,7 @@ class MarkerLoader(BaseLoader):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.page_sep = "[PAGE_SEP]"
-        self.worker = ray.get_actor("MarkerPool", namespace="ragondin")
+        self.worker = ray.get_actor("MarkerPool", namespace="openrag")
 
     async def aload_document(
         self,
