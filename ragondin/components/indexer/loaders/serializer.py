@@ -21,20 +21,7 @@ else:  # On CPU
 POOL_SIZE = config.ray.get("pool_size")
 MAX_TASKS_PER_WORKER = config.ray.get("max_tasks_per_worker")
 
-DICT_MIMETYPES = {
-            "text/plain": "txt",
-            "text/markdown": "md",
-            "application/pdf": "pdf",
-            "message/rfc822": "eml",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
-            "application/msword": "doc",
-            "image/png": "png",
-            "image/jpeg": "jpeg",
-            "audio/vnd.wav": "wav",
-            "audio/mpeg": "mp3",
-        }
-
+DICT_MIMETYPES = dict(config.loader["mimetypes"])
 
 @ray.remote(num_gpus=NUM_GPUS)
 class DocSerializer:
