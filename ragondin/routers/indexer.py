@@ -85,7 +85,23 @@ def _human_readable_size(size_bytes: int) -> str:
     return f"{size_bytes:.2f} PB"
 
 
-@router.post("/partition/{partition}/file/{file_id}")
+@router.get("/supported/types")
+async def get_supported_types():
+    list_extensions = list(ACCEPTED_FILE_FORMATS)
+    return JSONResponse(content={"supported_types": list_extensions})
+
+
+@router.post(
+    "/partition/{partition}/file/{file_id}",
+    description="""Description:
+    
+        In case if you have an unordinary file type (the file type is not in the list of supported file types),
+        you can add 'mimetype' key in metadata. Take this as an 
+        exemple: {"mimetype": "text/plain"}.
+        Here are some useful mimetypes: 'text/plain', 'text/markdown', 'application/pdf', 'message/rfc822'
+        
+    """,
+)
 async def add_file(
     request: Request,
     partition: str,
