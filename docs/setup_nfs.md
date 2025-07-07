@@ -53,9 +53,9 @@ sudo nano /etc/exports
 
 Add this line:
 ```
-/ray_mount 192.168.42.0/24(rw,sync,no_subtree_check)
+/ray_mount X.X.X.0/24(rw,sync,no_subtree_check)
 ```
-> ⚠ Replace `192.168.42.0/24` with your network's actual subnet.
+> ⚠ Replace `X.X.X.0/24` with your network's actual subnet.
 
 Apply the exports and restart the service:
 ```bash
@@ -70,13 +70,13 @@ sudo systemctl restart nfs-kernel-server
 Mount the shared folder:
 ```bash
 sudo mkdir -p /ray_mount
-sudo mount -t nfs 192.168.42.226:/ray_mount /ray_mount
+sudo mount -t nfs X.X.X.X:/ray_mount /ray_mount
 ```
-> ⚠ Replace `192.168.42.226` with the **IP of the main machine**.
+> ⚠ Replace `X.X.X.X` with the **IP of the main machine**.
 
 To make the mount permanent after reboot:
 ```bash
-echo "192.168.42.226:/ray_mount /ray_mount nfs defaults 0 0" | sudo tee -a /etc/fstab
+echo "X.X.X.X:/ray_mount /ray_mount nfs defaults 0 0" | sudo tee -a /etc/fstab
 ```
 
 ---

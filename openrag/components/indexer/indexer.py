@@ -32,7 +32,7 @@ class Indexer:
             api_key=self.config.embedder.get("api_key"),
         )
 
-        self.serializer_queue = ray.get_actor("SerializerQueue", namespace="ragondin")
+        self.serializer_queue = ray.get_actor("SerializerQueue", namespace="openrag")
 
         # Initialize chunker
         self.chunker: BaseChunker = ChunkerFactory.create_chunker(
@@ -43,13 +43,11 @@ class Indexer:
             self.config, self.logger, embeddings=self.embedder
         )
 
-        self.task_state_manager = ray.get_actor(
-            "TaskStateManager", namespace="ragondin"
-        )
+        self.task_state_manager = ray.get_actor("TaskStateManager", namespace="openrag")
 
         self.default_partition = "_default"
         self.enable_insertion = self.config.vectordb["enable"]
-        self.handle = ray.get_actor("Indexer", namespace="ragondin")
+        self.handle = ray.get_actor("Indexer", namespace="openrag")
         self.logger.info("Indexer actor initialized.")
 
     async def serialize(
