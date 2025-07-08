@@ -45,6 +45,7 @@ x-vllm: &vllm_template
     --trust-remote-code
   ports:
     - ${VLLM_PORT:-8000}:8000
+
 services:
   # GPU - default 
   openrag:
