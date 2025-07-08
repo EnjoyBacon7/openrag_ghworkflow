@@ -1,6 +1,6 @@
 # 🦫 OpenRag — The Open RAG Experimentation Playground
 
-[RAG Architecture](./RAG_architecture.png)
+![RAG Architecture](./RAG_architecture.png)
 
 OpenRag is a lightweight, modular and extensible Retrieval-Augmented Generation (RAG) framework designed to explore and test advanced RAG techniques — 100% open source and focused on experimentation, not lock-in.
 
