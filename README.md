@@ -309,14 +309,17 @@ sudo chmod 775 /app/model_weights
 ```
 </details>
 
-## 🤝 Contributing
 
-We ❤️ contributions!
+## 🤝 Support and Contributions
+We ❤️ your contributions!
 
-Contributions are welcome! Please follow standard GitHub workflow:
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
+We encourage you to contribute to OpenRag! Here's how you can get involved:
+1. Fork this repository.
+2. Create a new branch for your feature or fix.
+3. Submit a pull request for review.
+
+Feel free to ask **`questions`, `suggest features`, or `report bugs` via the GitHub Issues page**. Your feedback helps us improve!
+
 
 ## 📜 License
 
