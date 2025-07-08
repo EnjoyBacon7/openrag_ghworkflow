@@ -156,7 +156,8 @@ RETRIEVER_TOP_K=20 # Number of documents to return before reranking
 
 # EMBEDDER
 EMBEDDER_MODEL_NAME=Qwen/Qwen3-Embedding-0.6B
-EMBEDDER_BASE_URL=http://vllm:8000/v1
+# VLLM_PORT=8000 forwarded port
+# EMBEDDER_BASE_URL=http://vllm:8000/v1
 EMBEDDER_API_KEY=EMPTY
 
 # RERANKER
