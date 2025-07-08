@@ -83,9 +83,7 @@ For more details, [see this file](docs/features_in_details.md)
 * **📂 Expanded Format Support**: Future updates will introduce compatibility with additional formats such as `csv`, `odt`, `html`, and other widely used open-source document types.
 * **🔄 Unified Markdown Conversion**: All files will continue to be converted to markdown using a consistent chunker. Format-specific chunkers (e.g., for CSV, HTML) are planned for enhanced processing.
 * **🤖 Advanced Features**: Upcoming releases will include Tool Calling, Agentic RAG, and MCP to elevate your RAG workflows.
-* **🗂️ Enhanced Partition Management**: Transition to PostgreSQL alternatives for robust and scalable partition management in production environments.
-* **⚡ Optimized API Performance**: Critical API endpoints will be further optimized for faster response times and improved efficiency.
-* 🔍 **Embedder-Reranker Insights**: Compare performance and trade-offs of embedder and reranker combinations. Benchmarks and best practices coming soon!
+* **Enhanced Security**: Ensures data encryption both during transit and at rest.
 
 ### Prerequisites
 - **Python 3.12** or higher recommended
