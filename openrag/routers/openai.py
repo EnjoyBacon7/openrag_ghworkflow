@@ -98,7 +98,7 @@ def __prepare_sources(request: Request, docs: list[Document]):
     for doc in docs:
         doc_metadata = dict(doc.metadata)
         file_url = str(request.url_for("static", path=doc_metadata["filename"]))
-        file_url = file_url.replace("http://", "https://")  # Ensure HTTPS
+        # file_url = file_url.replace("http://", "https://")  # Ensure HTTPS
         encoded_url = quote(file_url, safe=":/")
         links.append(
             {
