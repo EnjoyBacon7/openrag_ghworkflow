@@ -57,8 +57,14 @@ Organize your knowledge base with flexible partition management:
 ### 💬 Interactive Chat UI with Source Attribution
 Engage with your documents through our sophisticated chat interface:
 
+<details>
+
+<summary>Chat UI Features</summary>
+
 * **Chainlit-powered UI** - modern, responsive chat experience
 * **Source transparency** - every response includes relevant document references
+</details>
+
 
 ### 🔌 OpenAI API Compatibility
 OpenRAG API is tailored to be compatible with the OpenAI format (see the [openai-compatibility section](docs/api_documentation.md#-openai-compatible-chat) for more details), enabling seamless integration of your deployed RAG into popular frontends and workflows such as OpenWebUI, LangChain, N8N, and more. This ensures flexibility and ease of adoption without requiring custom adapters.
@@ -75,26 +81,43 @@ OpenRAG API is tailored to be compatible with the OpenAI format (see the [openai
 
 
 ### ⚡ Distributed Ray Deployment
-Scale your RAG pipeline across multiple machines and GPUs:
+Scale your RAG pipeline across multiple machines and GPUs.
+<details>
+
+<summary>Distributed Ray Deployment</summary>
 
 * **Horizontal scaling** - distribute processing across worker nodes
 * **GPU acceleration** - optimize inference across available hardware
 * **Resource management** - intelligent allocation of compute resources
 * **Monitoring dashboard** - real-time cluster health and performance metrics
 
+See the section on [distributed deployment in a ray cluster](#5-distributed-deployment-in-a-ray-cluster) for more details
+
+</details>
+
 ### 🔍 Advanced Retrieval & Reranking
-Leverage state-of-the-art retrieval techniques for superior accuracy:
+OpenRAG Leverages state-of-the-art retrieval techniques for superior accuracy.
+
+<details>
+s
+<summary>Implemented advanced retrieval techniques</summary>
+
 * **Hybrid search** - combines semantic similarity with BM25 keyword matching
 * **Contextual retrieval** - Anthropic's technique for enhanced chunk relevance
 * **Multilingual reranking** - using `Alibaba-NLP/gte-multilingual-reranker-base`
 
 For more details, [see this file](docs/features_in_details.md)
 
+</details>
+
+
 ## 🚧 Coming Soon
 * **📂 Expanded Format Support**: Future updates will introduce compatibility with additional formats such as `csv`, `odt`, `html`, and other widely used open-source document types.
 * **🔄 Unified Markdown Conversion**: All files will continue to be converted to markdown using a consistent chunker. Format-specific chunkers (e.g., for CSV, HTML) are planned for enhanced processing.
 * **🤖 Advanced Features**: Upcoming releases will include Tool Calling, Agentic RAG, and MCP to elevate your RAG workflows.
 * **Enhanced Security**: Ensures data encryption both during transit and at rest.
+
+## 🚀 Installation
 
 ### Prerequisites
 - **Python 3.12** or higher recommended
@@ -255,7 +278,10 @@ To scale **OpenRag** in a distributed environment using **Ray**, follow the dedi
 This FastAPI-powered backend offers capabilities for document-based question answering (RAG), semantic search, and document indexing across multiple partitions. It exposes endpoints for interacting with a vector database and managing document ingestion, processing, and querying. See this document for [detailed overview of our api](docs/api_documentation.md).
 
 
+
 ## 🔧 Troubleshooting
+<details>
+<summary>Troubleshooting</summary>
 
 ### Error on dependencies installation
 
@@ -281,6 +307,7 @@ While executing OpenRag, if you encounter a problem that prevents you from downl
 sudo mkdir /app/model_weights
 sudo chmod 775 /app/model_weights
 ```
+</details>
 
 ## 🤝 Contributing
 
