@@ -36,13 +36,19 @@ OpenRag supports a comprehensive range of file formats for seamless document ing
 All files are intelligently converted to **Markdown format** with images replaced by AI-generated captions, ensuring consistent processing across all document types.
 
 ### 🎛️ Native Web-Based Indexer UI
-Experience intuitive document management through our built-in web interface:
+Experience intuitive document management through our built-in web interface.
+
+<details>
+
+<summary>Indexer UI Features</summary>
 
 * **Drag-and-drop file upload** with batch processing capabilities
 * **Real-time indexing progress** monitoring and status updates
 * **Partition management** - organize documents into logical collections
 * **Visual document preview** and metadata inspection
 * **Search and filtering** capabilities for indexed content
+
+</details>
 
 ### 🗂️ Partition-Based Architecture
 Organize your knowledge base with flexible partition management:
@@ -57,9 +63,16 @@ Engage with your documents through our sophisticated chat interface:
 ### 🔌 OpenAI API Compatibility
 OpenRAG API is tailored to be compatible with the OpenAI format (see the [openai-compatibility section](docs/api_documentation.md#-openai-compatible-chat) for more details), enabling seamless integration of your deployed RAG into popular frontends and workflows such as OpenWebUI, LangChain, N8N, and more. This ensures flexibility and ease of adoption without requiring custom adapters.
 
+<details>
+
+<summary>Summary of features</summary>
+
 * **Drop-in replacement** for OpenAI API endpoints
 * **Compatible with popular frontends** like OpenWebUI, LangChain, N8N, and more
 * **Authentication support** - secure your API with token-based auth
+
+</details>
+
 
 ### ⚡ Distributed Ray Deployment
 Scale your RAG pipeline across multiple machines and GPUs:
@@ -75,11 +88,9 @@ Leverage state-of-the-art retrieval techniques for superior accuracy:
 * **Contextual retrieval** - Anthropic's technique for enhanced chunk relevance
 * **Multilingual reranking** - using `Alibaba-NLP/gte-multilingual-reranker-base`
 
-
 For more details, [see this file](docs/features_in_details.md)
 
 ## 🚧 Coming Soon
-
 * **📂 Expanded Format Support**: Future updates will introduce compatibility with additional formats such as `csv`, `odt`, `html`, and other widely used open-source document types.
 * **🔄 Unified Markdown Conversion**: All files will continue to be converted to markdown using a consistent chunker. Format-specific chunkers (e.g., for CSV, HTML) are planned for enhanced processing.
 * **🤖 Advanced Features**: Upcoming releases will include Tool Calling, Agentic RAG, and MCP to elevate your RAG workflows.
