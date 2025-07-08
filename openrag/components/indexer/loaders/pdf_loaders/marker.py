@@ -19,7 +19,13 @@ logger = get_logger()
 config = load_config()
 
 
-@ray.remote(num_gpus=config.loader.get("marker_num_gpus", 0))
+if torch.cuda.is_available():
+    MARKER_NUM_GPUS = config.loader.get("marker_num_gpus", 0.01)
+else:  # On CPU
+    MARKER_NUM_GPUS = 0
+
+
+@ray.remote(num_gpus=MARKER_NUM_GPUS)
 class MarkerWorker:
     def __init__(self):
         import os
@@ -178,7 +184,7 @@ class MarkerLoader(BaseLoader):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.page_sep = "[PAGE_SEP]"
-        self.worker = ray.get_actor("MarkerPool", namespace="ragondin")
+        self.worker = ray.get_actor("MarkerPool", namespace="openrag")
 
     async def aload_document(
         self,

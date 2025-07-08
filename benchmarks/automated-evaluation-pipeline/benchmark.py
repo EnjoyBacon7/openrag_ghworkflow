@@ -14,17 +14,17 @@ import pandas as pd
 load_dotenv()
 
 
-# Retrieving responses and document sources fom RAGondin
-async def retrieve_response_and_docs_ragondin(
-    query: str, partition: str, ragondin_base_url: str, semaphore: asyncio.Semaphore
+# Retrieving responses and document sources fom OpenRAG
+async def retrieve_response_and_docs_openrag(
+    query: str, partition: str, _base_url: str, semaphore: asyncio.Semaphore
 ):
     async with semaphore:
-        base_url = f"{ragondin_base_url}/v1"
+        base_url = f"{_base_url}/v1"
         auth_key = "sk-1234"
         client = AsyncOpenAI(api_key=auth_key, base_url=base_url)
 
         settings = {
-            "model": f"ragondin-{partition}",
+            "model": f"openrag-{partition}",
             "messages": [
                 {
                     "role": "user",
@@ -166,12 +166,12 @@ llm_precision_judge = ChatOpenAI(**llm_judge_settings).with_structured_output(
 async def response_judgment_per_question(
     query: str,
     llm_answer: str,
-    ragondin_answer: str,
+    openrag_answer: str,
     semaphore: asyncio.Semaphore,
 ):
     s = f"""Voici les détails nécessaires pour évaluer la réponse d'un modèle de langage (LLM) à une question :
     query: {query}
-    true_answer: {ragondin_answer}
+    true_answer: {openrag_answer}
     generated_answer: {llm_answer}
     """
     async with semaphore:
@@ -209,36 +209,36 @@ async def main():
 
     num_port = os.environ.get("APP_PORT")
     num_host = os.environ["APP_URL"]
-    ragondin_api_base_url = f"http://{num_host}:{num_port}"
+    openrag_api_base_url = f"http://{num_host}:{num_port}"
     partition = "terresunivia"
 
     # Create shared semaphores for rate limiting
-    ragondin_semaphore = asyncio.Semaphore(4)  # Limit concurrent RAGondin requests
+    openrag_semaphore = asyncio.Semaphore(4)  # Limit concurrent OpenRAG requests
     judge_semaphore = asyncio.Semaphore(10)  # Limit concurrent judge requests
 
-    # Create tasks for RAGondin API calls
+    # Create tasks for OpenRAG API calls
     tasks = [
-        retrieve_response_and_docs_ragondin(
+        retrieve_response_and_docs_openrag(
             query=resp_ans_reference["question"],
             partition=partition,
-            ragondin_base_url=ragondin_api_base_url,
-            semaphore=ragondin_semaphore,
+            openrag_base_url=openrag_api_base_url,
+            semaphore=openrag_semaphore,
         )
         for resp_ans_reference in list_response_answer_reference
     ]
 
-    ragondin_answer_chunk_ids_l = await tqdm.gather(*tasks, desc="Fetching")
+    openrag_answer_chunk_ids_l = await tqdm.gather(*tasks, desc="Fetching")
     scores = []
     response_judge_tasks = []
 
-    for (ragondin_response, ragondin_chunk_ids), input_reference in zip(
-        ragondin_answer_chunk_ids_l, list_response_answer_reference
+    for (openrag_response, openrag_chunk_ids), input_reference in zip(
+        openrag_answer_chunk_ids_l, list_response_answer_reference
     ):
-        if ragondin_response is None:
+        if openrag_response is None:
             continue
         chunk_id_reference = [c["id"] for c in input_reference["chunks"]]
         score = source_score_per_question(
-            chunk_id_reference=chunk_id_reference, chunk_id_llm=ragondin_chunk_ids
+            chunk_id_reference=chunk_id_reference, chunk_id_llm=openrag_chunk_ids
         )
         scores.append(score)
 
@@ -246,7 +246,7 @@ async def main():
         resp_eval_task = response_judgment_per_question(
             query=input_reference["question"],
             llm_answer=input_reference["llm_answer"],
-            ragondin_answer=ragondin_response,
+            openrag_answer=openrag_response,
             semaphore=judge_semaphore,
         )
         response_judge_tasks.append(resp_eval_task)

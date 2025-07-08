@@ -55,18 +55,22 @@ answer_tmpl = """Vous êtes expert dans la réponse aux questions basées sur de
 La réponse doit être claire et répondre directement à la question en utilisant les informations des documents.
 Le résultat doit être la réponse seule, sans texte ni explication supplémentaire."""
 
-async def summarize(chunk: str, semaphore: asyncio.Semaphore = asyncio.Semaphore(10)) -> str:
+
+async def summarize(
+    chunk: str, semaphore: asyncio.Semaphore = asyncio.Semaphore(10)
+) -> str:
     async with semaphore:
         message = [
             {
                 "role": "user",
-                "content": f"Voici le document:\n{chunk}. Donnez-moi un résumé qui précise quel type d'informations et de contenu contient le passage, mais sans entrer dans des détails trop précis"
+                "content": f"Voici le document:\n{chunk}. Donnez-moi un résumé qui précise quel type d'informations et de contenu contient le passage, mais sans entrer dans des détails trop précis",
             }
         ]
 
         output = await llm.ainvoke(message)
         return output.content.strip()
-    
+
+
 async def format_chunks(chunks: list[str]):
     chunks_str = ""
     for i, chunk in enumerate(chunks, start=1):
@@ -144,9 +148,9 @@ async def generate_questions_from_clusters(
 async def main():
     num_port = os.environ.get("APP_PORT")
     num_host = os.environ["APP_URL"]
-    ragondin_api_base_url = f"http://{num_host}:{num_port}"
+    openrag_api_base_url = f"http://{num_host}:{num_port}"
     partition = "terresunivia"
-    url = f"{ragondin_api_base_url}/partition/{partition}/chunks"
+    url = f"{openrag_api_base_url}/partition/{partition}/chunks"
 
     start = time.time()
     all_chunks_list = await get_all_chunks(url)
@@ -196,7 +200,9 @@ async def main():
     # pickle.dump(
     #     clusters, open("./data/chunks_cluster.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL
     # )
-    questions = await generate_questions_from_clusters(clusters, n_questions_per_cluster=1)
+    questions = await generate_questions_from_clusters(
+        clusters, n_questions_per_cluster=1
+    )
 
     logger.info(f"Questions generated time: ({time.time() - pause}) seconds")
 

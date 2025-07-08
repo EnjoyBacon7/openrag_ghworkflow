@@ -5,7 +5,7 @@ provider:
   worker_ips: [10.0.0.2] # Mandatory but does not automatically start the worker nodes for a local cluster
 
 docker:
-  image: ghcr.io/openllm-france/ragondin-ray
+  image: ghcr.io/linagora/openrag-ray
   pull_before_run: true
   container_name: ray_node
   run_options:
