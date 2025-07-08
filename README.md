@@ -85,9 +85,7 @@ For more details, [see this file](docs/features_in_details.md)
 * **🤖 Advanced Features**: Upcoming releases will include Tool Calling, Agentic RAG, and MCP to elevate your RAG workflows.
 * **🗂️ Enhanced Partition Management**: Transition to PostgreSQL alternatives for robust and scalable partition management in production environments.
 * **⚡ Optimized API Performance**: Critical API endpoints will be further optimized for faster response times and improved efficiency.
-
-
-## 🚀 Installation
+* 🔍 **Embedder-Reranker Insights**: Compare performance and trade-offs of embedder and reranker combinations. Benchmarks and best practices coming soon!
 
 ### Prerequisites
 - **Python 3.12** or higher recommended

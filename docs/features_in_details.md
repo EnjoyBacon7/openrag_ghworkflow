@@ -44,10 +44,3 @@ Chunks are stored in the **Milvus** vector database using the `Qwen/Qwen3-Embedd
 > Semantic similarity doesn't always mean relevance. Rerankers help refine results and reduce hallucinations by prioritizing the most relevant documents.
 
 * *Reranker: Documents are then reranked using the multilingual reranker **`Alibaba-NLP/gte-multilingual-reranker-base`** model from Hugging Face.
-
-### 🔌 OpenAI API Compatibility
-
-Our RAG pipeline natively supports the **OpenAI API**, ensuring seamless integration with any tool or workflow built around the OpenAI interface. This means you can plug it directly into popular frontends like **`OpenWebUI`**—no custom adapters needed.
-
-Looking to get started? Check out the [API documentation](docs/api_documentation.md#-openai-compatible-chat) for full details.
-
