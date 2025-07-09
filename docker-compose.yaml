@@ -1,7 +1,8 @@
 include:
   - vdb/milvus.yaml
-  - ${CHAINLIT_DATALAYER_COMPOSE:-extern/dummy.yaml}
   - extern/infinity.yaml
+  # - extern/vllm.yaml
+  - ${CHAINLIT_DATALAYER_COMPOSE:-extern/dummy.yaml}
   - ${INDEXERUI_COMPOSE_FILE:-extern/dummy.yaml}
 
 x-openrag: &openrag_template
@@ -29,22 +30,6 @@ x-openrag: &openrag_template
   depends_on:
     - milvus
 
-x-vllm: &vllm_template
-  networks:
-    default:
-      aliases:
-        - vllm
-  restart: always
-  environment:
-    - HUGGING_FACE_HUB_TOKEN
-  ipc: "host"
-  volumes:
-    - ${VLLM_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface # put ./vllm_cache if you want to have the weights on the vllm_cache folder in your project
-  command: >
-    --model ${EMBEDDER_MODEL_NAME:-jinaai/jina-embeddings-v3}
-    --trust-remote-code
-  ports:
-    - ${VLLM_PORT:-8000}:8000
 
 services:
   # GPU - default 
@@ -63,31 +48,6 @@ services:
   # No GPU
   openrag-cpu:
     <<: *openrag_template
-    deploy: {}
-    profiles:
-      - 'cpu'
-
-  vllm-gpu:
-    <<: *vllm_template
-    image: vllm/vllm-openai:latest
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all 
-              capabilities: [gpu]
-    profiles:
-      - '' # Empty string gives default behavior (but does not run when cpu requested)
-
-  vllm-cpu:
-    <<: *vllm_template
-    build:
-      context: extern/vllm
-      dockerfile: Dockerfile.cpu
-      target: vllm-openai
-    image: openrag-vllm-openai-cpu
     deploy: {}
     profiles:
       - 'cpu'
