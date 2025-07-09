@@ -177,6 +177,8 @@ class MilvusDB(ABCVectorDB):
             self.default_collection_name = collection_name
             self.collection_name = collection_name
 
+        self.create_indexes()
+
     @property
     def collection_name(self):
         return self._collection_name
@@ -214,6 +216,28 @@ class MilvusDB(ABCVectorDB):
             self.default_collection_name = name
             self.logger.info(f"Default collection name set to `{name}`.")
         self._collection_name = name
+
+    # Create indexes for your filter fields
+    def create_indexes(self):
+        try:
+            # Index for partition field
+            self.client.create_index(
+                collection_name=self.collection_name,
+                field_name="partition",
+                index_name="partition_idx",  # Optional: custom name
+            )
+
+            # Index for file_id field
+            self.client.create_index(
+                collection_name=self.collection_name,
+                field_name="file_id",
+                index_name="file_id_idx",  # Optional: custom name
+            )
+
+            print("Indexes created successfully")
+
+        except Exception as e:
+            print(f"Error creating indexes: {e}")
 
     async def get_collections(self) -> list[str]:
         return self.client.list_collections()
@@ -424,6 +448,7 @@ class MilvusDB(ABCVectorDB):
     ):
         log = self.logger.bind(file_id=file_id, partition=partition)
         try:
+            # Check if file exists first to avoid unnecessary queries
             if not self.partition_file_manager.file_exists_in_partition(
                 file_id=file_id, partition=partition
             ):
@@ -432,39 +457,45 @@ class MilvusDB(ABCVectorDB):
             # Adjust filter expression based on the type of value
             filter_expression = f"partition == '{partition}' and file_id == '{file_id}'"
 
-            # Pagination parameters
-            offset = 0
-            results = []
+            # Use query iterator for better memory management and performance
             excluded_keys = (
                 ["text", "vector", "_id"] if not include_id else ["text", "vector"]
             )
 
+            # Determine output fields to fetch only what's needed
+            output_fields = ["text", "*"] if include_id else ["text", "*"]
+
+            docs = []
+            iterator = self.client.query_iterator(
+                collection_name=self.collection_name,
+                filter=filter_expression,
+                batch_size=min(
+                    limit, 500
+                ),  # Use smaller batches for better performance
+                output_fields=output_fields,
+            )
+
             while True:
-                response = self.client.query(
-                    collection_name=self.collection_name,
-                    filter=filter_expression,
-                    limit=limit,
-                    offset=offset,
-                )
+                result = iterator.next()
+                if not result:
+                    iterator.close()
+                    break
 
-                if not response:
-                    break  # No more results
+                # Process batch efficiently
+                batch_docs = [
+                    Document(
+                        page_content=res["text"],
+                        metadata={
+                            key: value
+                            for key, value in res.items()
+                            if key not in excluded_keys
+                        },
+                    )
+                    for res in result
+                ]
+                docs.extend(batch_docs)
 
-                results.extend(response)
-                offset += len(response)  # Move offset forward
-
-            docs = [
-                Document(
-                    page_content=res["text"],
-                    metadata={
-                        key: value
-                        for key, value in res.items()
-                        if key not in excluded_keys
-                    },
-                )
-                for res in results
-            ]
-            log.info("Fetched file chunks.", count=len(results))
+            log.info("Fetched file chunks.", count=len(docs))
             return docs
 
         except Exception:
@@ -559,23 +590,16 @@ class MilvusDB(ABCVectorDB):
 
     def delete_partition(self, partition: str):
         log = self.logger.bind(partition=partition)
-        if not self.partition_file_manager.partition_exists(partition):
-            log.debug(f"Partition {partition} does not exist")
-            return False
-
         try:
             count = self.client.delete(
                 collection_name=self.collection_name,
                 filter=f"partition == '{partition}'",
             )
-
             self.partition_file_manager.delete_partition(partition)
-
             log.info("Deleted points from partition", count=count.get("delete_count"))
-
             return True
-        except Exception:
-            log.exception("Failed to delete partition")
+        except Exception as e:
+            log.exception(f"Failed to delete partition: {str(e)}")
             return False
 
     def partition_exists(self, partition: str):

@@ -36,53 +36,36 @@ async def list_existant_partitions(request: Request):
 async def delete_partition(partition: str, indexer: Indexer = Depends(get_indexer)):
     try:
         deleted = ray.get(indexer.delete_partition.remote(partition))
-    except Exception:
-        logger.exception("Failed to delete partition", partition=partition)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete partition",
-        )
+        if not deleted:
+            logger.warning("Partition not found for deletion", partition=partition)
+            raise ValueError("Partition not found")
+        logger.debug("Partition successfully deleted.")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    if not deleted:
-        logger.warning("Partition not found for deletion", partition=partition)
+    except ValueError as e:
+        logger.exception(
+            "Failed to delete partition", partition=partition, error=str(e)
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Partition not found",
+            detail=f"Partition not found: {str(e)}",
         )
-
-    logger.debug("Partition successfully deleted.")
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        logger.exception(
+            "Failed to delete partition", partition=partition, error=str(e)
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete partition: {str(e)}",
+        )
 
 
 @router.get("/{partition}")
 async def list_files(
     request: Request,
     partition: str,
-    indexer: Indexer = Depends(get_indexer),
 ):
     log = logger.bind(partition=partition)
-
-    if not vectordb.partition_exists(partition):
-        log.warning("Partition not found")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Partition '{partition}' not found",
-        )
-
-    try:
-        partition_dict = vectordb.get_partition(partition=partition)
-        log.debug(
-            "Listed files in partition", file_count=len(partition_dict.get("files", []))
-        )
-    except ValueError as e:
-        log.warning(f"Invalid partition value: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception:
-        log.exception("Failed to list files in partition")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list files",
-        )
 
     def process_file(file_obj):
         file_dict = file_obj.to_dict()
@@ -95,30 +78,52 @@ async def list_files(
             **file_dict,
         }
 
-    partition_dict["files"] = list(map(process_file, partition_dict.get("files", [])))
-    return JSONResponse(status_code=status.HTTP_200_OK, content=partition_dict)
+    try:
+        partition_dict = vectordb.get_partition(partition=partition)
+        if not partition_dict:
+            log.warning("Partition not found")
+            raise ValueError(f"Partition '{partition}' not found")
 
-
-@router.get("/check-file/{partition}/file/{file_id}")
-async def check_file_exists_in_partition(
-    request: Request,
-    partition: str,
-    file_id: str,
-):
-    log = logger.bind(partition=partition, file_id=file_id)
-    exists = vectordb.file_exists(file_id, partition)
-    if not exists:
-        log.warning("File not found in partition.")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File '{file_id}' not found in partition '{partition}'.",
+        log.debug(
+            "Listed files in partition", file_count=len(partition_dict.get("files", []))
         )
 
-    log.debug("File exists in partition.")
-    return JSONResponse(
-        status_code=status.HTTP_200_OK,
-        content=f"File '{file_id}' exists in partition '{partition}'.",
-    )
+        partition_dict["files"] = list(
+            map(process_file, partition_dict.get("files", []))
+        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=partition_dict)
+
+    except ValueError as e:
+        log.warning(f"Invalid partition value: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        log.exception("Failed to list files in partition")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list files: {str(e)}",
+        )
+
+
+# @router.get("/check-file/{partition}/file/{file_id}")
+# async def check_file_exists_in_partition(
+#     request: Request,
+#     partition: str,
+#     file_id: str,
+# ):
+#     log = logger.bind(partition=partition, file_id=file_id)
+#     exists = vectordb.file_exists(file_id, partition)
+#     if not exists:
+#         log.warning("File not found in partition.")
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail=f"File '{file_id}' not found in partition '{partition}'.",
+#         )
+
+#     log.debug("File exists in partition.")
+#     return JSONResponse(
+#         status_code=status.HTTP_200_OK,
+#         content=f"File '{file_id}' exists in partition '{partition}'.",
+#     )
 
 
 @router.get("/{partition}/file/{file_id}")
@@ -127,37 +132,40 @@ async def get_file(
     partition: str,
     file_id: str,
 ):
-    if not vectordb.file_exists(file_id, partition):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File '{file_id}' not found in partition '{partition}'.",
-        )
-
     try:
         results = vectordb.get_file_chunks(
             partition=partition, file_id=file_id, include_id=True
         )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch file chunks.",
+        if not results:
+            raise ValueError(f"File '{file_id}' not found in partition '{partition}'.")
+
+        documents = [
+            {
+                "link": str(
+                    request.url_for("get_extract", extract_id=doc.metadata["_id"])
+                )
+            }
+            for doc in results
+        ]
+
+        metadata = (
+            {k: v for k, v in results[0].metadata.items() if k != "_id"}
+            if results
+            else {}
         )
 
-    documents = [
-        {"link": str(request.url_for("get_extract", extract_id=doc.metadata["_id"]))}
-        for doc in results
-    ]
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"metadata": metadata, "documents": documents},
+        )
 
-    metadata = (
-        {k: v for k, v in results[0].metadata.items() if k != "_id"} if results else {}
-    )
-
-    return JSONResponse(
-        status_code=status.HTTP_200_OK,
-        content={"metadata": metadata, "documents": documents},
-    )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch file chunks: {str(e)}",
+        )
 
 
 @router.get("/{partition}/sample")

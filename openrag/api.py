@@ -142,7 +142,7 @@ if WITH_CHAINLIT_UI:
     # Mount the default front
     from chainlit.utils import mount_chainlit
 
-    logger.debug("Mounting Chainlit UI")
+    # logger.info("Mounting Chainlit UI")
 
     mount_chainlit(app, "./chainlit/app_front.py", path="/chainlit")
     app.include_router(
