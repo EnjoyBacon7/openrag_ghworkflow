@@ -100,3 +100,4 @@ ray:
   num_gpus: ${oc.decode:${oc.env:RAY_NUM_GPUS, 0.1}}
   pool_size: ${oc.decode:${oc.env:RAY_POOL_SIZE, 1}}
   max_tasks_per_worker: ${oc.decode:${oc.env:RAY_MAX_TASKS_PER_WORKER, 5}}
+  actor_max_concurrency: ${oc.decode:${oc.env:RAY_ACTOR_MAX_CONCURRENCY, 10000}}

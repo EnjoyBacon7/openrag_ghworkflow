@@ -12,7 +12,7 @@ def get_or_create_actor(name, cls, namespace="ragondin", **options):
         return ray.get_actor(name, namespace=namespace)
     except ValueError:
         return cls.options(name=name, namespace=namespace, **options).remote()
-    except:
+    except Exception:
         raise
 
 

@@ -22,7 +22,7 @@ POOL_SIZE = config.ray.get("pool_size")
 MAX_TASKS_PER_WORKER = config.ray.get("max_tasks_per_worker")
 
 
-@ray.remote(max_restarts=-1, num_gpus=NUM_GPUS)
+@ray.remote(num_gpus=NUM_GPUS)
 class DocSerializer:
     def __init__(self, data_dir=None, **kwargs) -> None:
         from config import load_config
@@ -88,7 +88,7 @@ class DocSerializer:
             raise
 
 
-@ray.remote(max_restarts=-1)
+@ray.remote
 class SerializerQueue:
     def __init__(self):
         from utils.logger import get_logger
@@ -133,14 +133,3 @@ class SerializerQueue:
         finally:
             # 3) always return the slot, even on error
             await self._queue.put(actor)
-
-    async def pool_info(self) -> Dict[str, int]:
-        free = self._queue.qsize()
-        used = self.total_slots - free
-        return {
-            "pool_size": POOL_SIZE,
-            "max_tasks_per_worker": MAX_TASKS_PER_WORKER,
-            "total_capacity": self.total_slots,
-            "current_load": used,
-            "free_slots": free,
-        }

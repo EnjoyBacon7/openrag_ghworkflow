@@ -16,10 +16,18 @@ from langchain_openai import OpenAIEmbeddings
 from .chunker import BaseChunker, ChunkerFactory
 from .vectordb import ConnectorFactory
 
+config = load_config()
 save_uploaded_files = os.environ.get("SAVE_UPLOADED_FILES", "true").lower() == "true"
 
+POOL_SIZE = config.ray.get("pool_size")
+MAX_TASKS_PER_WORKER = config.ray.get("max_tasks_per_worker")
 
-@ray.remote(max_restarts=-1, max_concurrency=1000, concurrency_groups={"insertion": 1})
+
+@ray.remote(
+    max_concurrency=100000,
+    max_task_retries=2,
+    concurrency_groups={"insertion": 1},
+)
 class Indexer:
     def __init__(self):
         from utils.logger import get_logger
@@ -54,12 +62,39 @@ class Indexer:
         self.logger.info("Indexer actor initialized.")
 
     async def serialize(
-        self, task_id: str, path: str, metadata: Optional[Dict] = {}
+        self,
+        task_id: str,
+        path: str,
+        metadata: Optional[Dict] = {},
+        timeout: float = 36000,
     ) -> Document:
-        doc: Document = await self.serializer_queue.submit_document.remote(
+        import ray
+        from ray.exceptions import TaskCancelledError
+
+        # Kick off the remote task
+        future = self.serializer_queue.submit_document.remote(
             task_id, path, metadata=metadata
         )
-        return doc
+
+        # Wait for it to complete, with timeout
+        ready, _ = await asyncio.to_thread(ray.wait, [future], timeout=timeout)
+
+        if ready:
+            try:
+                doc = await asyncio.to_thread(ray.get, ready[0])
+                return doc
+            except TaskCancelledError:
+                self.logger.warning(f"Task {task_id} was cancelled")
+                raise
+            except Exception as e:
+                self.logger.exception(f"Task {task_id} failed with error: {e}")
+                raise
+        else:
+            self.logger.warning(f"Timeout: cancelling task {task_id} after {timeout}s")
+            ray.cancel(future, recursive=True)
+            raise TimeoutError(
+                f"Serialization task {task_id} timed out after {timeout} seconds"
+            )
 
     async def chunk(
         self, doc: Document, file_path: str, task_id: str = None
@@ -198,9 +233,6 @@ class Indexer:
             filter=filter,
         )
 
-    async def get_task_status(self, task_id: str) -> Optional[str]:
-        return await self.task_state_manager.get_state.remote(task_id)
-
     def _check_partition_str(self, partition: Optional[str]) -> str:
         if partition is None:
             self.logger.warning("partition not provided; using default.")
@@ -245,7 +277,7 @@ class TaskInfo:
     details: Dict[str, Any] = field(default_factory=dict)
 
 
-@ray.remote(max_restarts=-1)
+@ray.remote(max_concurrency=10000)
 class TaskStateManager:
     def __init__(self):
         self.tasks: Dict[str, TaskInfo] = {}
@@ -307,3 +339,10 @@ class TaskStateManager:
                 }
                 for task_id, info in self.tasks.items()
             }
+
+    async def get_pool_info(self) -> Dict[str, int]:
+        return {
+            "pool_size": POOL_SIZE,
+            "max_tasks_per_worker": MAX_TASKS_PER_WORKER,
+            "total_capacity": POOL_SIZE * MAX_TASKS_PER_WORKER,
+        }

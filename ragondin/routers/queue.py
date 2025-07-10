@@ -21,8 +21,8 @@ def _format_pool_info(worker_info: dict[str, int]) -> dict[str, int]:
     """
     return {
         "total_slots": worker_info["total_capacity"],
-        "free_slots": worker_info["free_slots"],
-        "busy_slots": worker_info["current_load"],
+        # "free_slots": worker_info["free_slots"],
+        # "busy_slots": worker_info["current_load"],
         "pool_size": worker_info["pool_size"],
         "max_per_actor": worker_info["max_tasks_per_worker"],
     }
@@ -43,7 +43,7 @@ async def get_queue_info():
         "total_failed": status_counts.get("FAILED", 0),
     }
 
-    worker_info = await serializer_queue.pool_info.remote()
+    worker_info = await task_state_manager.get_pool_info.remote()
     workers_block = _format_pool_info(worker_info)
 
     return {"workers": workers_block, "tasks": task_summary}

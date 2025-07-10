@@ -3,7 +3,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-import ray
 from config.config import load_config
 from fastapi import (
     APIRouter,
@@ -146,7 +145,7 @@ async def add_file(
 @router.delete("/partition/{partition}/file/{file_id}")
 async def delete_file(partition: str, file_id: str):
     try:
-        deleted = ray.get(indexer.delete_file.remote(file_id, partition))
+        deleted = await indexer.delete_file.remote(file_id, partition)
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -178,7 +177,7 @@ async def put_file(
         )
 
     try:
-        ray.get(indexer.delete_file.remote(file_id, partition))
+        await indexer.delete_file.remote(file_id, partition)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -241,7 +240,7 @@ async def patch_file(
     metadata["file_id"] = file_id
 
     try:
-        ray.get(indexer.update_file_metadata.remote(file_id, metadata, partition))
+        await indexer.update_file_metadata.remote(file_id, metadata, partition)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -260,7 +259,7 @@ async def get_task_status(
     task_id: str,
 ):
     # fetch task state
-    state = await indexer.get_task_status.remote(task_id)
+    state = await task_state_manager.get_state.remote(task_id)
     if state is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
