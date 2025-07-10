@@ -1,6 +1,5 @@
 import asyncio
 import gc
-import inspect
 import os
 import traceback
 from dataclasses import dataclass, field
@@ -23,9 +22,14 @@ MAX_TASKS_PER_WORKER = config.ray.get("max_tasks_per_worker")
 
 
 @ray.remote(
-    max_concurrency=100000,
-    max_task_retries=2,
-    concurrency_groups={"insertion": 1},
+    max_concurrency=config.ray.indexer.concurrency_groups.default,
+    max_task_retries=config.ray.indexer.max_task_retries,
+    concurrency_groups={
+        "update": config.ray.indexer.concurrency_groups["update"],
+        "search": config.ray.indexer.concurrency_groups["search"],
+        "delete": config.ray.indexer.concurrency_groups["delete"],
+        "insert": config.ray.indexer.concurrency_groups["insert"],
+    },
 )
 class Indexer:
     def __init__(self):
@@ -168,10 +172,11 @@ class Indexer:
                 log.warning(f"Failed to delete input file {path}: {cleanup_err}")
         return True
 
-    @ray.method(concurrency_group="insertion")
+    @ray.method(concurrency_group="insert")
     async def insert_documents(self, chunks):
         await self.vectordb.async_add_documents.remote(chunks)
 
+    @ray.method(concurrency_group="delete")
     async def delete_file(self, file_id: str, partition: str) -> bool:
         log = self.logger.bind(file_id=file_id, partition=partition)
 
@@ -192,6 +197,7 @@ class Indexer:
             log.exception("Error in delete_file")
             raise
 
+    @ray.method(concurrency_group="update")
     async def update_file_metadata(self, file_id: str, metadata: Dict, partition: str):
         log = self.logger.bind(file_id=file_id, partition=partition)
 
@@ -213,6 +219,7 @@ class Indexer:
             log.exception("Error in update_file_metadata")
             raise
 
+    @ray.method(concurrency_group="search")
     async def asearch(
         self,
         query: str,
@@ -238,9 +245,6 @@ class Indexer:
             raise ValueError("Partition must be a string.")
         return partition
 
-    async def delete_partition(self, partition: str):
-        return await self.vectordb.delete_partition.remote(partition)
-
     def _check_partition_list(
         self, partition: Optional[Union[str, List[str]]]
     ) -> List[str]:
@@ -253,19 +257,6 @@ class Indexer:
             return partition
         raise ValueError("Partition must be a string or a list of strings.")
 
-    async def _delegate_vdb_call(self, method_name: str, *args, **kwargs):
-        method = getattr(self.vectordb, method_name, None)
-        if method is None or not callable(method):
-            raise AttributeError(f"Method {method_name} not found on vectordb.")
-        result = method(*args, **kwargs)
-        if inspect.isawaitable(result):
-            return await result
-        return result
-
-    def _is_method_async(self, method_name: str) -> bool:
-        method = getattr(self.vectordb, method_name, None)
-        return inspect.iscoroutinefunction(method) if method else False
-
 
 @dataclass
 class TaskInfo:
@@ -274,7 +265,7 @@ class TaskInfo:
     details: Dict[str, Any] = field(default_factory=dict)
 
 
-@ray.remote(max_concurrency=10000)
+@ray.remote(concurrency_groups={"set": 1000, "get": 1000, "queue_info": 1000})
 class TaskStateManager:
     def __init__(self):
         self.tasks: Dict[str, TaskInfo] = {}
@@ -286,16 +277,19 @@ class TaskStateManager:
             self.tasks[task_id] = TaskInfo()
         return self.tasks[task_id]
 
+    @ray.method(concurrency_group="set")
     async def set_state(self, task_id: str, state: str):
         async with self.lock:
             info = await self._ensure_task(task_id)
             info.state = state
 
+    @ray.method(concurrency_group="set")
     async def set_error(self, task_id: str, tb_str: str):
         async with self.lock:
             info = await self._ensure_task(task_id)
             info.error = tb_str
 
+    @ray.method(concurrency_group="set")
     async def set_details(
         self, task_id: str, *, file_id: str, partition: int, metadata: dict
     ):
@@ -307,25 +301,30 @@ class TaskStateManager:
                 "metadata": metadata,
             }
 
+    @ray.method(concurrency_group="get")
     async def get_state(self, task_id: str) -> Optional[str]:
         async with self.lock:
             info = self.tasks.get(task_id)
             return info.state if info else None
 
+    @ray.method(concurrency_group="get")
     async def get_error(self, task_id: str) -> Optional[str]:
         async with self.lock:
             info = self.tasks.get(task_id)
             return info.error if info else None
 
+    @ray.method(concurrency_group="get")
     async def get_details(self, task_id: str) -> Optional[dict]:
         async with self.lock:
             info = self.tasks.get(task_id)
             return info.details if info else None
 
+    @ray.method(concurrency_group="queue_info")
     async def get_all_states(self) -> Dict[str, str]:
         async with self.lock:
             return {tid: info.state for tid, info in self.tasks.items()}
 
+    @ray.method(concurrency_group="queue_info")
     async def get_all_info(self) -> Dict[str, dict]:
         async with self.lock:
             return {
@@ -337,6 +336,7 @@ class TaskStateManager:
                 for task_id, info in self.tasks.items()
             }
 
+    @ray.method(concurrency_group="queue_info")
     async def get_pool_info(self) -> Dict[str, int]:
         return {
             "pool_size": POOL_SIZE,

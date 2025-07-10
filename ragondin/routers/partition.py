@@ -1,4 +1,3 @@
-import ray
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from utils.dependencies import get_indexer, get_vectordb
@@ -36,7 +35,7 @@ async def list_existant_partitions():
 @router.delete("/{partition}")
 async def delete_partition(partition: str):
     try:
-        deleted = ray.get(indexer.delete_partition.remote(partition))
+        deleted = await vectordb.delete_partition.remote(partition)
     except Exception:
         logger.exception("Failed to delete partition", partition=partition)
         raise HTTPException(

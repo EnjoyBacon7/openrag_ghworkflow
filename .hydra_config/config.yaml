@@ -100,4 +100,11 @@ ray:
   num_gpus: ${oc.decode:${oc.env:RAY_NUM_GPUS, 0.1}}
   pool_size: ${oc.decode:${oc.env:RAY_POOL_SIZE, 1}}
   max_tasks_per_worker: ${oc.decode:${oc.env:RAY_MAX_TASKS_PER_WORKER, 5}}
-  actor_max_concurrency: ${oc.decode:${oc.env:RAY_ACTOR_MAX_CONCURRENCY, 10000}}
+  indexer:
+    max_task_retries: ${oc.decode:${oc.env:RAY_MAX_TASK_RETRIES, 2}}
+    concurrency_groups:
+      default: ${oc.decode:${oc.env:INDEXER_DEFAULT_CONCURRENCY, 10000}}
+      update: ${oc.decode:${oc.env:INDEXER_UPDATE_CONCURRENCY, 100}}
+      search: ${oc.decode:${oc.env:INDEXER_SEARCH_CONCURRENCY, 100}}
+      delete: ${oc.decode:${oc.env:INDEXER_DELETE_CONCURRENCY, 100}}
+      insert: ${oc.decode:${oc.env:INDEXER_INSERT_CONCURRENCY, 1}}
