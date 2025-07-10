@@ -170,7 +170,10 @@ class MilvusDB(ABCVectorDB):
         self.vector_store = None
         self.partition_file_manager: PartitionFileManager = None
         self.default_partition = "_default"
-        self.db_dir = kwargs.get("db_dir", None)
+        self.rdb_host = kwargs.get("rdb_host", None)
+        self.rdb_port = kwargs.get("rdb_port", None)
+        self.rdb_user = kwargs.get("rdb_user", None)
+        self.rdb_password = kwargs.get("rdb_password", None)
 
         # Set the initial collection name (if provided)
         if collection_name:
@@ -203,7 +206,7 @@ class MilvusDB(ABCVectorDB):
         )
 
         self.partition_file_manager = PartitionFileManager(
-            database_url=f"sqlite:///{self.db_dir}/partitions_for_collection_{name}.db",
+            database_url=f"postgresql://{self.rdb_user}:{self.rdb_password}@{self.rdb_host}:{self.rdb_port}/partitions_for_collection_{name}",
             logger=self.logger,
         )
 
@@ -1025,6 +1028,9 @@ class ConnectorFactory:
 
         dbconfig["embeddings"] = embeddings
         dbconfig["logger"] = logger
-        dbconfig["db_dir"] = config.paths.db_dir
+        dbconfig["rdb_host"] = "rdb"
+        dbconfig["rdb_port"] = config["rdb"].port
+        dbconfig["rdb_user"] = config["rdb"].user
+        dbconfig["rdb_password"] = config["rdb"].password
 
         return vdb_cls(**dbconfig)
