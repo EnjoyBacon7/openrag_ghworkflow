@@ -153,6 +153,7 @@ class RagPipeline:
         )
 
         if RAG_MAP_REDUCE:
+            img_context = []
             context = "Extracted documents:\n"
             relevant_docs = []
             res = await self.map_reduce.map(query=query, chunks=docs)
@@ -166,7 +167,7 @@ class RagPipeline:
 
         else:
             # 3. Format the retrieved docs
-            context = format_context(docs)
+            context, img_context = format_context(docs)
 
         # 4. prepare the output
         messages: list = copy.deepcopy(messages)
@@ -180,6 +181,8 @@ class RagPipeline:
             },
         )
         # messages.append({"role": "tool", "name": "retriever", "content": f"Here are the retrieved documents: {context}"})
+        # logger.info("messages", messages=messages)
+        messages.extend(img_context)
 
         payload["messages"] = messages
         return payload, docs

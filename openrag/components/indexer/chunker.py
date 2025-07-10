@@ -115,6 +115,12 @@ class BaseChunker(ABC):
             logger.warning(f"Error when contextualizing chunks from `{source}`: {e}")
             return chunks
 
+    def _get_img_refs(self, chunk: str) -> list[str]:
+        # Img references are typically in the format ![alt text](image_url)
+        # This regex captures the image URL inside parentheses
+        img_refs = re.findall(r"!\[.*?\]\((.*?)\)", chunk)
+        return img_refs
+
     def _get_chunk_page_info(self, chunk_str: str, previous_page=1):
         """
         Determine the start and end pages for a text chunk containing [PAGE_N] separators.
@@ -152,6 +158,78 @@ class BaseChunker(ABC):
     @abstractmethod
     async def split_document(self, doc: Document, task_id: str = None):
         pass
+
+
+class RecursiveSplitterWithImg(BaseChunker):
+    """RecursiveSplitter splits documents into chunks using recursive character splitting."""
+
+    def __init__(self, chunk_size: int = 200, chunk_overlap: int = 20, **kwargs):
+        super().__init__(**kwargs)
+
+        from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+        self.splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            length_function=lambda x: self.llm.get_num_tokens(x)
+            if self.llm
+            else len(x),
+        )
+
+    async def split_document(self, doc: Document, task_id: str = None):
+        metadata = dict(doc.metadata)
+        imgref2path = metadata.pop("imgref2path")
+
+        log = logger.bind(
+            file_id=metadata.get("file_id"),
+            partition=metadata.get("partition"),
+            task_id=task_id,
+        )
+        log.info("Starting document chunking")
+        source = metadata["source"]
+        all_content = doc.page_content.strip()
+        chunks = self.splitter.split_text(all_content)
+
+        chunks_w_context = chunks  # Default to original chunks if no contextualization
+        if self.contextual_retrieval:
+            log.info("Contextualizing chunks")
+            chunks_w_context = await self._contextualize_chunks(chunks, source=source)
+
+        filtered_chunks = []
+        prev_page_num = 1
+        for chunk, chunk_w_context in zip(chunks, chunks_w_context):
+            page_info = self._get_chunk_page_info(
+                chunk_str=chunk, previous_page=prev_page_num
+            )
+            start_page = page_info["start_page"]
+            end_page = page_info["end_page"]
+            prev_page_num = end_page
+
+            # find all image references in the chunk
+            image_paths = []
+            if imgref2path:
+                imgrefs = self._get_img_refs(chunk)
+
+                if imgrefs:
+                    # If there are image references, add them to the metadata
+                    for imgref in imgrefs:
+                        imgpath = imgref2path.get(imgref)
+                        if imgpath:
+                            image_paths.append(imgpath)
+
+            if len(chunk.strip()) > 3:
+                filtered_chunks.append(
+                    Document(
+                        page_content=chunk_w_context,
+                        metadata={
+                            **metadata,
+                            "page": start_page,
+                            **({"image_paths": image_paths} if image_paths else {}),
+                        },
+                    )
+                )
+        log.info("Document chunking completed")
+        return filtered_chunks
 
 
 class RecursiveSplitter(BaseChunker):
@@ -383,6 +461,7 @@ class ChunkerFactory:
         "recursive_splitter": RecursiveSplitter,
         "semantic_splitter": SemanticSplitter,
         "markdown_splitter": MarkDownSplitter,
+        "recursive_splitter_wi": RecursiveSplitterWithImg,
     }
 
     @staticmethod

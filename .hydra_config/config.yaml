@@ -1,6 +1,6 @@
 defaults:
   - _self_  # TODO: Silences the hydra version migration warning (PLEASE REVIEW FOR BREAKING CHANGES)
-  - chunker: markdown_splitter # recursive_splitter, semantic_splitter
+  - chunker: recursive_splitter_wi # recursive_splitter, semantic_splitter
   - retriever: single
   - rag: ChatBotRag
 
@@ -67,7 +67,7 @@ prompt:
 
 loader:
   image_captioning: true
-  save_markdown: false
+  save_markdown: true
   audio_model: ${oc.env:WHISPER_MODEL, base} # tiny, base, small, medium, large-v1, large-v2, large-v3
   file_loaders:
     txt: TextLoader

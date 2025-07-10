@@ -3,10 +3,14 @@ import atexit
 import threading
 from abc import ABCMeta
 from pathlib import Path
+import base64
 
 import ray
 from config.config import load_config
 from langchain_core.documents.base import Document
+from utils.logger import get_logger
+
+logger = get_logger()
 
 
 class SingletonMeta(type):
@@ -106,9 +110,12 @@ def load_sys_template(file_path: Path) -> tuple[str, str]:
         return sys_msg
 
 
-def format_context(docs: list[Document]) -> str:
+def format_context(docs: list[Document]):
     if not docs:
-        return "No document found from the database"
+        return "No document found from the database", []
+
+    img_context = []
+    keys = set()
 
     context = "Extracted documents:\n"
     for i, doc in enumerate(docs, start=1):
@@ -120,7 +127,31 @@ def format_context(docs: list[Document]) -> str:
         context += document
         context += "-" * 40 + "\n\n"
 
-    return context
+        if "image_paths" in doc.metadata:
+            imgref2path: list = doc.metadata["image_paths"]
+            for imgpath in imgref2path:
+                if imgpath not in keys:
+                    # load b64 image
+                    with open(imgpath, "rb") as img_file:
+                        img_b64 = base64.b64encode(img_file.read()).decode("utf-8")
+                        img_context.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{img_b64}"
+                                },
+                            }
+                        )
+    logger.info("N images", n_images=len(img_context))
+    img_context = img_context[:2]
+
+    img_context.append(
+        {
+            "type": "text",
+            "text": "Use the visual content when necessary to answer user's request",
+        }
+    )
+    return context, img_context
 
 
 # Global variables

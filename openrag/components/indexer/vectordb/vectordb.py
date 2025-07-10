@@ -339,8 +339,12 @@ class MilvusDB(ABCVectorDB):
         """Asynchronously add documents to the vector store."""
 
         try:
+            _drop = ["page", "image_paths"]
             file_metadata = dict(chunks[0].metadata)
-            file_metadata.pop("page")
+
+            for k in _drop:
+                file_metadata.pop(k)
+
             file_id, partition = (
                 file_metadata.get("file_id"),
                 file_metadata.get("partition"),

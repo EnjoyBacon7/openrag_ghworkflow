@@ -44,8 +44,8 @@ class VDBProxy:
 config = load_config()
 
 # Initialize marker if needed
-if config.loader.file_loaders.get("pdf") == "MarkerLoader":
-    marker = MarkerPool.options(name="MarkerPool", namespace="openrag").remote()
+if config.loader.file_loaders.get("pdf") == "MarkerLoader2":
+    marker = MarkerPool.options(name="MarkerPool2", namespace="openrag").remote()
 
 # Create task state manager actor
 task_state_manager = TaskStateManager.options(
