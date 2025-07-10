@@ -15,7 +15,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import JSONResponse
-from utils.dependencies import get_indexer, get_task_state_manager, vectordb
+from utils.dependencies import get_indexer, get_task_state_manager, get_vectordb
 from utils.logger import get_logger
 
 # load logger
@@ -31,6 +31,7 @@ LOG_FILE = Path(config.paths.log_dir or "logs") / "app.json"
 # Get the TaskStateManager actor
 task_state_manager = get_task_state_manager()
 indexer = get_indexer()
+vectordb = get_vectordb()
 
 # Create an APIRouter instance
 router = APIRouter()
@@ -95,7 +96,7 @@ async def add_file(
 ):
     log = logger.bind(file_id=file_id, partition=partition, filename=file.filename)
 
-    if vectordb.file_exists(file_id, partition):
+    if await vectordb.file_exists.remote(file_id, partition):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"File '{file_id}' already exists in partition {partition}",
@@ -170,7 +171,7 @@ async def put_file(
 ):
     log = logger.bind(file_id=file_id, partition=partition, filename=file.filename)
 
-    if not vectordb.file_exists(file_id, partition):
+    if not await vectordb.file_exists.remote(file_id, partition):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"File '{file_id}' not found in partition '{partition}'.",
@@ -231,7 +232,7 @@ async def patch_file(
     file_id: str = Depends(validate_file_id),
     metadata: Optional[Any] = Depends(validate_metadata),
 ):
-    if not vectordb.file_exists(file_id, partition):
+    if not await vectordb.file_exists.remote(file_id, partition):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"File '{file_id}' not found in partition '{partition}'.",

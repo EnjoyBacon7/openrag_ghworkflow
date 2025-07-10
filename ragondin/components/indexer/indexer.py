@@ -14,7 +14,6 @@ from langchain_core.documents.base import Document
 from langchain_openai import OpenAIEmbeddings
 
 from .chunker import BaseChunker, ChunkerFactory
-from .vectordb import ConnectorFactory
 
 config = load_config()
 save_uploaded_files = os.environ.get("SAVE_UPLOADED_FILES", "true").lower() == "true"
@@ -48,9 +47,7 @@ class Indexer:
             self.config, embedder=self.embedder
         )
 
-        self.vectordb = ConnectorFactory.create_vdb(
-            self.config, self.logger, embeddings=self.embedder
-        )
+        self.vectordb = ray.get_actor("Vectordb", namespace="ragondin")
 
         self.task_state_manager = ray.get_actor(
             "TaskStateManager", namespace="ragondin"
@@ -173,9 +170,9 @@ class Indexer:
 
     @ray.method(concurrency_group="insertion")
     async def insert_documents(self, chunks):
-        await self.vectordb.async_add_documents(chunks)
+        await self.vectordb.async_add_documents.remote(chunks)
 
-    def delete_file(self, file_id: str, partition: str) -> bool:
+    async def delete_file(self, file_id: str, partition: str) -> bool:
         log = self.logger.bind(file_id=file_id, partition=partition)
 
         if not self.enable_insertion:
@@ -183,12 +180,12 @@ class Indexer:
             return False
 
         try:
-            points = self.vectordb.get_file_points(file_id, partition)
+            points = await self.vectordb.get_file_points.remote(file_id, partition)
             if not points:
                 log.info("No points found for file_id.")
                 return False
 
-            self.vectordb.delete_file_points(points, file_id, partition)
+            await self.vectordb.delete_file_points.remote(points, file_id, partition)
             log.info("Deleted file from partition.")
             return True
         except Exception:
@@ -209,8 +206,8 @@ class Indexer:
             for doc in docs:
                 doc.metadata.update(metadata)
 
-            self.delete_file(file_id, partition)
-            await self.vectordb.async_add_documents(docs)
+            await self.delete_file(file_id, partition)
+            await self.vectordb.async_add_documents.remote(docs)
             log.info("Metadata updated for file.")
         except Exception:
             log.exception("Error in update_file_metadata")
@@ -225,7 +222,7 @@ class Indexer:
         filter: Optional[Dict] = {},
     ) -> List[Document]:
         partition_list = self._check_partition_list(partition)
-        return await self.vectordb.async_search(
+        return await self.vectordb.async_search.remote(
             query=query,
             partition=partition_list,
             top_k=top_k,
@@ -242,7 +239,7 @@ class Indexer:
         return partition
 
     def delete_partition(self, partition: str):
-        return self.vectordb.delete_partition(partition)
+        return self.vectordb.delete_partition.remote(partition)
 
     def _check_partition_list(
         self, partition: Optional[Union[str, List[str]]]

@@ -30,13 +30,14 @@ from routers.openai import router as openai_router
 from routers.partition import router as partition_router
 from routers.queue import router as queue_router
 from routers.search import router as search_router
-from utils.dependencies import vectordb
+from utils.dependencies import get_vectordb
 from utils.logger import get_logger
 
 logger = get_logger()
 config = load_config()
 DATA_DIR = Path(config.paths.data_dir)
 
+vectordb = get_vectordb()
 ragPipe = RagPipeline(config=config, vectordb=vectordb, logger=logger)
 
 
