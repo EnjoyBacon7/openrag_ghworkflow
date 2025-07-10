@@ -242,10 +242,10 @@ async def patch_file(
 
     try:
         await indexer.update_file_metadata.remote(file_id, metadata, partition)
-    except Exception:
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update metadata.",
+            detail=f"Failed to update metadata : {str(e)}",
         )
 
     return JSONResponse(

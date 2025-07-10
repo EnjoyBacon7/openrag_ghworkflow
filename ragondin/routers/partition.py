@@ -1,7 +1,7 @@
 import ray
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
-from utils.dependencies import get_indexer, vectordb
+from utils.dependencies import get_indexer, get_vectordb
 from utils.logger import get_logger
 
 logger = get_logger()
@@ -9,6 +9,7 @@ logger = get_logger()
 router = APIRouter()
 
 indexer = get_indexer()
+vectordb = get_vectordb()
 
 
 @router.get("/")
@@ -16,7 +17,7 @@ async def list_existant_partitions():
     try:
         partitions = [
             {"partition": p.partition, "created_at": int(p.created_at.timestamp())}
-            for p in vectordb.list_partitions()
+            for p in await vectordb.list_partitions.remote()
         ]
         logger.debug(
             "Returned list of existing partitions.", partition_count=len(partitions)
@@ -61,7 +62,7 @@ async def list_files(
 ):
     log = logger.bind(partition=partition)
 
-    if not vectordb.partition_exists(partition):
+    if not await vectordb.partition_exists.remote(partition):
         log.warning("Partition not found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -69,7 +70,7 @@ async def list_files(
         )
 
     try:
-        results = vectordb.list_files(partition=partition)
+        results = await vectordb.list_files.remote(partition=partition)
         log.debug("Listed files in partition", file_count=len(results))
     except ValueError as e:
         log.warning(f"Invalid partition value: {str(e)}")
@@ -95,7 +96,7 @@ async def check_file_exists_in_partition(
     file_id: str,
 ):
     log = logger.bind(partition=partition, file_id=file_id)
-    exists = vectordb.file_exists(file_id, partition)
+    exists = await vectordb.file_exists.remote(file_id, partition)
     if not exists:
         log.warning("File not found in partition.")
         raise HTTPException(
@@ -116,14 +117,14 @@ async def get_file(
     partition: str,
     file_id: str,
 ):
-    if not vectordb.file_exists(file_id, partition):
+    if not await vectordb.file_exists.remote(file_id, partition):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"File '{file_id}' not found in partition '{partition}'.",
         )
 
     try:
-        results = vectordb.get_file_chunks(
+        results = await vectordb.get_file_chunks.remote(
             partition=partition, file_id=file_id, include_id=True
         )
     except ValueError as e:
@@ -154,14 +155,14 @@ async def sample_chunks(
     request: Request, partition: str, n_ids: int = 200, seed: int | None = None
 ):
     # Check if partition exists
-    if not vectordb.partition_exists(partition):
+    if not await vectordb.partition_exists.remote(partition):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Partition '{partition}' not found.",
         )
 
     try:
-        list_ids = vectordb.sample_chunk_ids(
+        list_ids = await vectordb.sample_chunk_ids.remote(
             partition=partition, n_ids=n_ids, seed=seed
         )
     except ValueError as e:
@@ -183,14 +184,14 @@ async def list_all_chunks(
     request: Request, partition: str, include_embedding: bool = True
 ):
     # Check if partition exists
-    if not vectordb.partition_exists(partition):
+    if not await vectordb.partition_exists.remote(partition):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Partition '{partition}' not found.",
         )
 
     try:
-        chunks = vectordb.list_all_chunk(
+        chunks = await vectordb.list_all_chunk.remote(
             partition=partition, include_embedding=include_embedding
         )
     except ValueError as e:

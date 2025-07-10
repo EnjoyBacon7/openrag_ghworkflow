@@ -202,7 +202,7 @@ class Indexer:
             return
 
         try:
-            docs = self.vectordb.get_file_chunks(file_id, partition)
+            docs = await self.vectordb.get_file_chunks.remote(file_id, partition)
             for doc in docs:
                 doc.metadata.update(metadata)
 
@@ -238,8 +238,8 @@ class Indexer:
             raise ValueError("Partition must be a string.")
         return partition
 
-    def delete_partition(self, partition: str):
-        return self.vectordb.delete_partition.remote(partition)
+    async def delete_partition(self, partition: str):
+        return await self.vectordb.delete_partition.remote(partition)
 
     def _check_partition_list(
         self, partition: Optional[Union[str, List[str]]]

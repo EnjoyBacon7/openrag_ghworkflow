@@ -4,7 +4,7 @@ from components import ABCVectorDB
 from components.indexer.indexer import Indexer, TaskStateManager
 from components.indexer.loaders.pdf_loaders.marker import MarkerPool
 from components.indexer.loaders.serializer import SerializerQueue
-from components.indexer.vectordb.vectordb import RayMilvusDB
+from components.indexer.vectordb.vectordb import MilvusDB
 from config import load_config
 
 
@@ -15,38 +15,6 @@ def get_or_create_actor(name, cls, namespace="ragondin", **options):
         return cls.options(name=name, namespace=namespace, **options).remote()
     except Exception:
         raise
-
-
-class VDBProxy:
-    """Class that delegates method calls to the remote vectordb."""
-
-    def __init__(self, indexer_actor: ray.actor.ActorHandle):
-        self.indexer_actor = indexer_actor  # Reference to the remote actor
-
-    def __getattr__(self, method_name):
-        # Check if the method is async on the remote vectordb
-        is_async = ray.get(self.indexer_actor._is_method_async.remote(method_name))
-
-        if is_async:
-            # Return an async coroutine for async methods
-            async def async_wrapper(*args, **kwargs):
-                result_ref = self.indexer_actor._delegate_vdb_call.remote(
-                    method_name, *args, **kwargs
-                )
-                return await result_ref
-
-            return async_wrapper
-
-        else:
-            # Return a blocking wrapper for sync methods
-            def sync_wrapper(*args, **kwargs):
-                return ray.get(
-                    self.indexer_actor._delegate_vdb_call.remote(
-                        method_name, *args, **kwargs
-                    )
-                )
-
-            return sync_wrapper
 
 
 # load config
@@ -73,7 +41,7 @@ def get_indexer():
 
 
 def get_vectordb() -> ABCVectorDB:
-    return get_or_create_actor("Vectordb", RayMilvusDB, namespace="ragondin")
+    return get_or_create_actor("Vectordb", MilvusDB, namespace="ragondin")
 
 
 vectordb = get_vectordb()

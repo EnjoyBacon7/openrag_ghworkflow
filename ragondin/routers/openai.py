@@ -45,7 +45,7 @@ async def check_llm_model_availability(request: Request):
 async def list_models(
     app_state=Depends(get_app_state), _: None = Depends(check_llm_model_availability)
 ):
-    partitions = app_state.vectordb.list_partitions()
+    partitions = await app_state.vectordb.list_partitions.remote()
     logger.debug("Listing models", partition_count=len(partitions))
     models = [
         {
@@ -62,14 +62,15 @@ async def list_models(
     return JSONResponse(content={"object": "list", "data": models})
 
 
-def __get_partition_name(model_name, app_state):
+async def __get_partition_name(model_name, app_state):
     if not model_name.startswith("ragondin-"):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Model not found. Model should respect this format `ragondin-{partition}`",
         )
     partition = model_name.split("ragondin-")[1]
-    if partition != "all" and not app_state.vectordb.partition_exists(partition):
+    partition_exists = await app_state.vectordb.partition_exists.remote(partition)
+    if partition != "all" and not partition_exists:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Partition `{partition}` not found for given model `{model_name}`",
@@ -117,7 +118,7 @@ async def openai_chat_completion(
         )
 
     try:
-        partition = __get_partition_name(model_name, app_state)
+        partition = await __get_partition_name(model_name, app_state)
     except Exception as e:
         log.warning(f"Invalid model or partition: {e}")
         raise
@@ -196,7 +197,7 @@ async def openai_completion(
         )
 
     try:
-        partition = __get_partition_name(model_name, app_state)
+        partition = await __get_partition_name(model_name, app_state)
     except Exception as e:
         log.warning(f"Invalid model or partition: {e}")
         raise
