@@ -18,7 +18,7 @@ from .vectordb import ConnectorFactory
 save_uploaded_files = os.environ.get("SAVE_UPLOADED_FILES", "true").lower() == "true"
 
 
-@ray.remote(max_restarts=-1, max_concurrency=1000, concurrency_groups={"insertion": 1})
+@ray.remote(max_restarts=-1, max_concurrency=1000, concurrency_groups={"insertion": 8})
 class Indexer:
     def __init__(self):
         from utils.logger import get_logger

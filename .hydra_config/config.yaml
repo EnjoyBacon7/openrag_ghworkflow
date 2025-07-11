@@ -40,6 +40,11 @@ vectordb:
   hybrid_mode: true
   enable: true
 
+rdb:
+  port: ${oc.env:POSTGRES_PORT, 5432}
+  user: ${oc.env:POSTGRES_USER, root}
+  password: ${oc.env:POSTGRES_PASSWORD, root_password}
+
 reranker:
   enable: ${oc.decode:${oc.env:RERANKER_ENABLED, true}}
   model_name: ${oc.env:RERANKER_MODEL, Alibaba-NLP/gte-multilingual-reranker-base}
