@@ -4,7 +4,7 @@ include:
   - extern/infinity.yaml
   - ${INDEXERUI_COMPOSE_FILE:-extern/dummy.yaml}
 
-x-openrag: &openrag_template
+x-ragondin: &ragondin_template
   build:
     context: .
     dockerfile: Dockerfile
@@ -12,7 +12,7 @@ x-openrag: &openrag_template
     - ${CONFIG_VOLUME:-./.hydra_config}:/app/.hydra_config
     - ${DATA_VOLUME:-./data}:/app/data
     - ${MODEL_WEIGHTS_VOLUME:-~/.cache/huggingface}:/app/model_weights # Model weights for RAG
-    - ./openrag:/app/openrag # For dev mode
+    - ./ragondin:/app/ragondin # For dev mode
     - ${DB_VOLUME:-./db}:/app/db
     - /$SHARED_ENV:/ray_mount/.env # Shared environment variables
     - /ray_mount/logs:/app/logs
@@ -22,7 +22,7 @@ x-openrag: &openrag_template
   networks:
     default:
       aliases:
-        - openrag
+        - ragondin
   env_file:
     - ${SHARED_ENV:-.env}
   shm_size: 10.24gb
@@ -45,11 +45,10 @@ x-vllm: &vllm_template
     --trust-remote-code
   ports:
     - ${VLLM_PORT:-8000}:8000
-
 services:
   # GPU - default 
-  openrag:
-    <<: *openrag_template
+  ragondin:
+    <<: *ragondin_template
     deploy:
       resources:
         reservations:
@@ -61,8 +60,8 @@ services:
       - ''
 
   # No GPU
-  openrag-cpu:
-    <<: *openrag_template
+  ragondin-cpu:
+    <<: *ragondin_template
     deploy: {}
     profiles:
       - 'cpu'
@@ -87,7 +86,7 @@ services:
       context: extern/vllm
       dockerfile: Dockerfile.cpu
       target: vllm-openai
-    image: openrag-vllm-openai-cpu
+    image: ragondin-vllm-openai-cpu
     deploy: {}
     profiles:
       - 'cpu'

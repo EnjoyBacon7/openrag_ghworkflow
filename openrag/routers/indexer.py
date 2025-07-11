@@ -8,6 +8,7 @@ from config.config import load_config
 from fastapi import (
     APIRouter,
     Depends,
+    File,
     Form,
     HTTPException,
     Request,
@@ -25,9 +26,13 @@ logger = get_logger()
 # load config
 config = load_config()
 DATA_DIR = config.paths.data_dir
-ACCEPTED_FILE_FORMATS = dict(config.loader["file_loaders"]).keys()
 FORBIDDEN_CHARS_IN_FILE_ID = set("/")  # set('"<>#%{}|\\^`[]')
 LOG_FILE = Path(config.paths.log_dir or "logs") / "app.json"
+
+# supported file formats or mimetypes
+ACCEPTED_FILE_FORMATS = dict(config.loader["file_loaders"]).keys()
+DICT_MIMETYPES = dict(config.loader["mimetypes"])
+
 
 # Get the TaskStateManager actor
 task_state_manager = ray.get_actor("TaskStateManager", namespace="openrag")
@@ -53,18 +58,6 @@ async def validate_file_id(file_id: str):
     return file_id
 
 
-async def validate_file_format(file: UploadFile):
-    file_extension = (
-        file.filename.split(".")[-1].lower() if "." in file.filename else ""
-    )
-    if file_extension not in ACCEPTED_FILE_FORMATS:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"Unsupported file format: {file_extension}. Supported formats are: {', '.join(ACCEPTED_FILE_FORMATS)}",
-        )
-    return file
-
-
 async def validate_metadata(metadata: Optional[Any] = Form(None)):
     try:
         processed_metadata = metadata or "{}"
@@ -76,6 +69,31 @@ async def validate_metadata(metadata: Optional[Any] = Form(None)):
         )
 
 
+async def validate_file_format(
+    file: UploadFile,
+    metadata: dict = Depends(validate_metadata),
+):
+    file_extension = (
+        file.filename.split(".")[-1].lower() if "." in file.filename else ""
+    )
+    mimetype = metadata.get("mimetype", None)
+
+    if (
+        file_extension not in ACCEPTED_FILE_FORMATS
+        and mimetype not in DICT_MIMETYPES.keys()
+    ):
+        details = (
+            f"Unsupported file format: {file_extension} or file mimetype.\n"
+            f"Supported formats: {', '.join(ACCEPTED_FILE_FORMATS)}\n"
+            f"Supported mimetypes: {', '.join(DICT_MIMETYPES.keys())}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=details,
+        )
+    return file
+
+
 def _human_readable_size(size_bytes: int) -> str:
     """Convert bytes to a human-readable format (e.g., '2.4 MB')."""
     for unit in ["B", "KB", "MB", "GB", "TB"]:
@@ -85,7 +103,23 @@ def _human_readable_size(size_bytes: int) -> str:
     return f"{size_bytes:.2f} PB"
 
 
-@router.post("/partition/{partition}/file/{file_id}")
+@router.get("/supported/types")
+async def get_supported_types():
+    list_extensions = list(ACCEPTED_FILE_FORMATS)
+    return JSONResponse(content={"supported_types": list_extensions})
+
+
+@router.post(
+    "/partition/{partition}/file/{file_id}",
+    description="""Description:
+    
+        In case if you have an unordinary file type (the file type is not in the list of supported file types),
+        you can add 'mimetype' key in metadata. Take this as an 
+        exemple: {"mimetype": "text/plain"}.
+        Here are some useful mimetypes: 'text/plain', 'text/markdown', 'application/pdf', 'message/rfc822'
+        
+    """,
+)
 async def add_file(
     request: Request,
     partition: str,
