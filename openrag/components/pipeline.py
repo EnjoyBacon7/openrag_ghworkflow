@@ -107,6 +107,7 @@ class RagPipeline:
         self.contextualizer = AsyncOpenAI(
             base_url=config.vlm["base_url"], api_key=config.vlm["api_key"]
         )
+        self.max_contextualized_query_len = config.rag["max_contextualized_query_len"]
 
         self.map_reduce: RAGMapReduce = RAGMapReduce(config=config)
 
@@ -125,6 +126,9 @@ class RagPipeline:
 
                 params = dict(self.config.llm_params)
                 params.pop("max_retries")
+                params['max_completion_tokens'] = self.max_contextualized_query_len
+                params['extra_body'] = { "chat_template_kwargs": {"enable_thinking": False} }
+
                 response = await self.contextualizer.chat.completions.create(
                     model=self.config.vlm["model"],
                     messages=[
