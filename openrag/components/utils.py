@@ -74,7 +74,7 @@ class DistributedSemaphore:
     def __init__(
         self,
         name: str = "llmSemaphore",
-        namespace="ragondin",
+        namespace="openrag",
         max_concurrent_ops: int = 10,
     ):
         try:

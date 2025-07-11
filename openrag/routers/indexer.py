@@ -26,13 +26,16 @@ logger = get_logger()
 # load config
 config = load_config()
 DATA_DIR = config.paths.data_dir
-ACCEPTED_FILE_FORMATS = dict(config.loader["file_loaders"]).keys()
-DICT_MIMETYPES = dict(config.loader["mimetypes"])
 FORBIDDEN_CHARS_IN_FILE_ID = set("/")  # set('"<>#%{}|\\^`[]')
 LOG_FILE = Path(config.paths.log_dir or "logs") / "app.json"
 
+# supported file formats or mimetypes
+ACCEPTED_FILE_FORMATS = dict(config.loader["file_loaders"]).keys()
+DICT_MIMETYPES = dict(config.loader["mimetypes"])
+
+
 # Get the TaskStateManager actor
-task_state_manager = ray.get_actor("TaskStateManager", namespace="ragondin")
+task_state_manager = ray.get_actor("TaskStateManager", namespace="openrag")
 
 # Create an APIRouter instance
 router = APIRouter()
@@ -54,6 +57,7 @@ async def validate_file_id(file_id: str):
         )
     return file_id
 
+
 async def validate_metadata(metadata: Optional[Any] = Form(None)):
     try:
         processed_metadata = metadata or "{}"
@@ -64,18 +68,28 @@ async def validate_metadata(metadata: Optional[Any] = Form(None)):
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON in metadata"
         )
 
+
 async def validate_file_format(
-        file: UploadFile,
-        metadata: dict = Depends(validate_metadata),    
-    ):
+    file: UploadFile,
+    metadata: dict = Depends(validate_metadata),
+):
     file_extension = (
         file.filename.split(".")[-1].lower() if "." in file.filename else ""
     )
     mimetype = metadata.get("mimetype", None)
-    if file_extension not in ACCEPTED_FILE_FORMATS and mimetype not in DICT_MIMETYPES.keys():
+
+    if (
+        file_extension not in ACCEPTED_FILE_FORMATS
+        and mimetype not in DICT_MIMETYPES.keys()
+    ):
+        details = (
+            f"Unsupported file format: {file_extension} or file mimetype.\n"
+            f"Supported formats: {', '.join(ACCEPTED_FILE_FORMATS)}\n"
+            f"Supported mimetypes: {', '.join(DICT_MIMETYPES.keys())}"
+        )
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"Unsupported file format: {file_extension} or file mimetype. Supported formats are: {', '.join(ACCEPTED_FILE_FORMATS)}",
+            detail=details,
         )
     return file
 

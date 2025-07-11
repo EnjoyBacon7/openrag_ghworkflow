@@ -33,15 +33,15 @@ RUN pip3 install uv && \
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 # Set workdir for source code
-WORKDIR /app/ragondin
+WORKDIR /app/openrag
 
 # Copy source code
-COPY ragondin/ .
+COPY openrag/ .
 
 # Copy assests & config
 COPY public/ /app/public/
 COPY prompts/ /app/prompts/
 COPY .hydra_config/ /app/.hydra_config/
-ENV PYTHONPATH=/app/ragondin/
+ENV PYTHONPATH=/app/openrag/
 ENV APP_iPORT=${APP_iPORT:-8080}
 ENTRYPOINT ../entrypoint.sh

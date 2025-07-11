@@ -1,10 +1,10 @@
 ## Configuring the Indexer UI
 
 ### 1. Download the `indexer-ui` Submodule
-> Ensure the `indexer-ui` submodule is properly initialized and downloaded. Run the following command from the root of your `ragondin` project:
+> Ensure the `indexer-ui` submodule is properly initialized and downloaded. Run the following command from the root of your `openrag` project:
 
 ```bash
-cd <project-name> # ragondin project
+cd <project-name> # openrag project
 git submodule update --init --recursive
 ```
 > [!IMPORTANT]

@@ -6,7 +6,7 @@ from dotenv import dotenv_values
 SHARED_ENV = os.environ.get("SHARED_ENV", None)
 
 env_vars = dotenv_values(SHARED_ENV) if SHARED_ENV else {}
-env_vars["PYTHONPATH"] = "/app/ragondin"
+env_vars["PYTHONPATH"] = "/app/openrag"
 
 
 ray.init(dashboard_host="0.0.0.0")
@@ -142,7 +142,7 @@ if WITH_CHAINLIT_UI:
     # Mount the default front
     from chainlit.utils import mount_chainlit
 
-    logger.debug("Mounting Chainlit UI")
+    # logger.debug("Mounting Chainlit UI")
 
     mount_chainlit(app, "./chainlit/app_front.py", path="/chainlit")
     app.include_router(

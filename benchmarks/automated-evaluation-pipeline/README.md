@@ -1,6 +1,6 @@
 # Extraction and generation benchmark
 
-This folder is built to check RAGondin's ability to extract the relevant documents and also the responses. The questions are generated based from the sources sharing the same topic.
+This folder is built to check OpenRAG's ability to extract the relevant documents and also the responses. The questions are generated based from the sources sharing the same topic.
 
 Here are the steps to follow in order to reproduce the benchmark.
 
@@ -12,7 +12,7 @@ cd benchmarks/automated-evaluation-pipeline
 ```
 
 ## Inserting files into the vectorize database
-This will send all the files in your `pdf_files/` folder to your RAGondin via API method (and they will be indexed automatically), so make sure that your RAGondin is turned on first.
+This will send all the files in your `pdf_files/` folder to your OpenRAG via API method (and they will be indexed automatically), so make sure that your OpenRAG is turned on first.
 
 ```bash
 python upload_files.py
@@ -23,7 +23,7 @@ You can name the partition in the input.
 ## Organise all the chunks into clusters
 We use the endpoint `chunks` to retrieve all the available chunks from a partition, then to organise them all into clusters (with the helps from `Umap` and `HDBSCAN`). 
 
-For each cluster, we take a certain number of combinaisons of chunks (varies from 1 to 3) and generate questions with LLM's help (the model that you are also using for RAGondin).
+For each cluster, we take a certain number of combinaisons of chunks (varies from 1 to 3) and generate questions with LLM's help (the model that you are also using for OpenRAG).
 
 ```bash
 python generate_questions.py

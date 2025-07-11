@@ -1,6 +1,6 @@
 # ⚡ Distributed Deployment in a Ray Cluster
 
-This guide explains how to deploy **RAGondin** across multiple machines using **Ray** for distributed indexing and processing.
+This guide explains how to deploy **OpenRAG** across multiple machines using **Ray** for distributed indexing and processing.
 
 ---
 
@@ -72,7 +72,7 @@ provider:
   worker_ips: [10.0.0.2]  # Static IPs of other nodes (does not auto-start workers)
 
 docker:
-  image: ghcr.io/openllm-france/ragondin-ray
+  image: ghcr.io/linagora/openrag-ray
   pull_before_run: true
   container_name: ray_node
   run_options:
@@ -92,7 +92,7 @@ head_setup_commands:
   - bash /app/ray-cluster/start_head.sh
 ```
 
-> 🛠️ The base image (`ghcr.io/openllm-france/ragondin-ray`) must be built from `Dockerfile.ray` and pushed to a container registry before use.
+> 🛠️ The base image (`ghcr.io/linagora/openrag-ray`) must be built from `Dockerfile.ray` and pushed to a container registry before use.
 
 ### ⬆️ Launch the cluster
 
@@ -116,13 +116,13 @@ docker run --rm -d \
   -v /ray_mount/logs:/app/logs \
   --shm-size=10.24g
   --name ray_node_worker \
-  ghcr.io/openllm-france/ragondin-ray \
+  ghcr.io/linagora/openrag-ray \
   bash /app/ray-cluster/start_worker.sh
 ```
 
 ---
 
-## 🐳 4. Launch the RAGondin App
+## 🐳 4. Launch the OpenRAG App
 
 Use the Docker Compose setup:
 
@@ -130,7 +130,7 @@ Use the Docker Compose setup:
 docker compose up -d
 ```
 
-Once running, **RAGondin will auto-connect** to the Ray cluster using `RAY_ADDRESS` from `.env`.
+Once running, **OpenRAG will auto-connect** to the Ray cluster using `RAY_ADDRESS` from `.env`.
 
 ---
 
