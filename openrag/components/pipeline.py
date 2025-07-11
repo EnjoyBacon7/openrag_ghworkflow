@@ -152,21 +152,24 @@ class RagPipeline:
             partition=partition, query=query
         )
 
-        if RAG_MAP_REDUCE:
-            context = "Extracted documents:\n"
-            relevant_docs = []
-            res = await self.map_reduce.map(query=query, chunks=docs)
-            for synthesis, doc in res:
-                context += synthesis + "\n"
-                context += "-" * 40 + "\n"
-                relevant_docs.append(doc)
+        # if RAG_MAP_REDUCE:
+        #     context = "Extracted documents:\n"
+        #     relevant_docs = []
+        #     res = await self.map_reduce.map(query=query, chunks=docs)
+        #     for synthesis, doc in res:
+        #         context += synthesis + "\n"
+        #         context += "-" * 40 + "\n"
+        #         relevant_docs.append(doc)
 
-            logger.debug(context)
-            docs = relevant_docs
+        #     logger.debug(context)
+        #     docs = relevant_docs
 
-        else:
-            # 3. Format the retrieved docs
-            context = format_context(docs)
+        # else:
+        #     # 3. Format the retrieved docs
+        #     context = format_context(docs)
+
+        # 3. Format the retrieved docs
+        context = format_context(docs)
 
         # 4. prepare the output
         messages: list = copy.deepcopy(messages)
