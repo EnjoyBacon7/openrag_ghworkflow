@@ -111,13 +111,30 @@ async def get_supported_types():
 
 @router.post(
     "/partition/{partition}/file/{file_id}",
-    description="""Description:
+    description="""Upload and index a new file.
     
-        In case if you have an unordinary file type (the file type is not in the list of supported file types),
-        you can add 'mimetype' key in metadata. Take this as an 
-        exemple: {"mimetype": "text/plain"}.
-        Here are some useful mimetypes: 'text/plain', 'text/markdown', 'application/pdf', 'message/rfc822'
-        
+    **File Type Support:**
+    - Supports standard file extensions listed in `/supported/types`
+    - For unsupported extensions, specify `mimetype` in metadata
+    
+    **Metadata Format:**
+    JSON string containing file metadata. Example:
+    ```json
+    {
+        "mimetype": "text/plain",
+        "author": "John Doe",
+        ...
+    }
+    ```
+    
+    **Common Mimetypes:**
+    - `text/plain` - Plain text files
+    - `text/markdown` - Markdown files  
+    - `application/pdf` - PDF documents
+    - `message/rfc822` - Email files
+    
+    **Response:**
+    Returns 201 Created with a task status URL for tracking indexing progress.
     """,
 )
 async def add_file(
