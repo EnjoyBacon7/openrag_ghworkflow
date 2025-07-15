@@ -14,15 +14,12 @@ router = APIRouter()
 serializer_queue = get_serializer_queue()
 task_state_manager = get_task_state_manager()
 
-
 def _format_pool_info(worker_info: dict[str, int]) -> dict[str, int]:
     """
     Convert SerializerQueue.pool_info() output into a concise dict for the API.
     """
     return {
         "total_slots": worker_info["total_capacity"],
-        # "free_slots": worker_info["free_slots"],
-        # "busy_slots": worker_info["current_load"],
         "pool_size": worker_info["pool_size"],
         "max_per_actor": worker_info["max_tasks_per_worker"],
     }

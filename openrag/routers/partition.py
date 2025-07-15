@@ -24,11 +24,12 @@ async def list_existant_partitions():
         return JSONResponse(
             status_code=status.HTTP_200_OK, content={"partitions": partitions}
         )
-    except Exception:
-        logger.exception("Failed to list partitions.")
+    except Exception as e:
+        logger.exception(f"Failed to list partitions")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list partitions.",
+            detail=f"Failed to list partitions: {str(e)}",
+
         )
 
 
@@ -69,8 +70,10 @@ async def list_files(
         )
 
     try:
-        results = await vectordb.list_files.remote(partition=partition)
-        log.debug("Listed files in partition", file_count=len(results))
+        partition_dict = await vectordb.get_partition.remote(partition=partition)
+        log.debug(
+            "Listed files in partition", file_count=len(partition_dict.get("files", []))
+        )
     except ValueError as e:
         log.warning(f"Invalid partition value: {str(e)}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -81,13 +84,19 @@ async def list_files(
             detail="Failed to list files",
         )
 
-    files = [
-        {"link": str(request.url_for("get_file", partition=partition, file_id=file))}
-        for file in results
-    ]
+    def process_file(file_obj):
+        file_dict = file_obj.to_dict()
+        return {
+            "link": str(
+                request.url_for(
+                    "get_file", partition=partition, file_id=file_dict["file_id"]
+                )
+            ),
+            **file_dict,
+        }
 
-    return JSONResponse(status_code=status.HTTP_200_OK, content={"files": files})
-
+    partition_dict["files"] = list(map(process_file, partition_dict.get("files", [])))
+    return JSONResponse(status_code=status.HTTP_200_OK, content=partition_dict)
 
 @router.get("/check-file/{partition}/file/{file_id}")
 async def check_file_exists_in_partition(
@@ -211,3 +220,22 @@ async def list_all_chunks(
         for chunk in chunks
     ]
     return JSONResponse(status_code=status.HTTP_200_OK, content={"chunks": chunks})
+
+# def process_partition(partition):
+#     def add_file_url(file_obj):
+#         file_dict = file_obj.to_dict()
+#         file_metadata = file_dict.pop("file_metadata", {})
+#         return {
+#             **file_dict,
+#             **file_metadata,
+#             "file_url": str(
+#                 request.url_for(
+#                     "get_file",
+#                     partition=file_dict["partition"],
+#                     file_id=file_dict["file_id"],
+#                 )
+#             ),
+#         }
+#     partition["files"] = list(map(add_file_url, partition["files"]))
+#     return partition
+

@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np
 import ray
+
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_core.documents.base import Document
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -90,6 +91,13 @@ class ABCVectorDB(ABC):
     ) -> List[Document]:
         pass
 
+    @abstractmethod
+    def get_partition(self, partition: str):
+        pass
+
+    @abstractmethod
+    def list_partitions(self, **kwargs):
+        pass
 
 @ray.remote
 class MilvusDB(ABCVectorDB):
@@ -120,6 +128,7 @@ class MilvusDB(ABCVectorDB):
     """
 
     def __init__(self):
+
         """
         Initialize Milvus.
 
@@ -152,6 +161,7 @@ class MilvusDB(ABCVectorDB):
 
         index_params = None
         if self.hybrid_mode:
+
             index_params = INDEX_PARAMS
         else:
             index_params = {"metric_type": "COSINE", "index_type": "FLAT"}
@@ -163,12 +173,16 @@ class MilvusDB(ABCVectorDB):
         self.vector_store = None
         self.partition_file_manager: PartitionFileManager = None
         self.default_partition = "_default"
-        self.db_dir = self.config.paths.db_dir
+        self.rdb_host = kwargs.get("rdb_host", None)
+        self.rdb_port = kwargs.get("rdb_port", None)
+        self.rdb_user = kwargs.get("rdb_user", None)
+        self.rdb_password = kwargs.get("rdb_password", None)
 
         # Set the initial collection name (if provided)
-        if self.config.vectordb.collection_name:
-            self.default_collection_name = self.config.vectordb.collection_name
-            self.collection_name = self.config.vectordb.collection_name
+        if collection_name:
+            self.default_collection_name = collection_name
+            self.collection_name = collection_name
+
 
     @property
     def collection_name(self):
@@ -196,7 +210,7 @@ class MilvusDB(ABCVectorDB):
         )
 
         self.partition_file_manager = PartitionFileManager(
-            database_url=f"sqlite:///{self.db_dir}/partitions_for_collection_{name}.db",
+            database_url=f"postgresql://{self.rdb_user}:{self.rdb_password}@{self.rdb_host}:{self.rdb_port}/partitions_for_collection_{name}",
             logger=self.logger,
         )
 
@@ -331,12 +345,15 @@ class MilvusDB(ABCVectorDB):
     async def async_add_documents(self, chunks: list[Document]) -> None:
         """Asynchronously add documents to the vector store."""
 
-        partition_file_list = set(
-            (c.metadata["partition"], c.metadata["file_id"]) for c in chunks
-        )
+        try:
+            file_metadata = dict(chunks[0].metadata)
+            file_metadata.pop("page")
+            file_id, partition = (
+                file_metadata.get("file_id"),
+                file_metadata.get("partition"),
+            )
 
-        # check if this file_id exists
-        for partition, file_id in partition_file_list:
+            # check if this file_id exists
             res = self.partition_file_manager.file_exists_in_partition(
                 file_id=file_id, partition=partition
             )
@@ -345,12 +362,18 @@ class MilvusDB(ABCVectorDB):
                     f"No Insertion: This File ({file_id}) already exists in Partition ({partition})"
                 )
 
-        await self.vector_store.aadd_documents(chunks)
+            await self.vector_store.aadd_documents(chunks)
+            # asyncio.create_task(self.vector_store.aadd_documents(chunks)) # for prods
 
-        for partition, file_id in partition_file_list:
+            # insert file_id and partition into partition_file_manager
             self.partition_file_manager.add_file_to_partition(
-                file_id=file_id, partition=partition
+                file_id=file_id, partition=partition, file_metadata=file_metadata
             )
+        except Exception as e:
+            self.logger.exception(
+                "Error while adding documents to Milvus", error=str(e)
+            )
+            raise e
 
     def get_file_points(self, file_id: str, partition: str, limit: int = 100):
         """
@@ -517,30 +540,22 @@ class MilvusDB(ABCVectorDB):
             )
             return False
 
-    def list_files(self, partition: str):
-        """
-        Retrieve all unique file_id values from a given partition.
-        """
+    def get_partition(self, partition: str):
         try:
-            if not self.partition_file_manager.partition_exists(partition=partition):
-                return []
-            else:
-                results = self.partition_file_manager.list_files_in_partition(
-                    partition=partition
-                )
-                return results
+            partition_dict = self.partition_file_manager.get_partition(
+                partition=partition
+            )
+            return partition_dict
 
         except Exception:
-            self.logger.exception(
-                "Failed to list files in partition.", partition=partition
-            )
+            self.logger.exception("Failed get this partition.", partition=partition)
             raise
 
-    def list_partitions(self):
+    def list_partitions(self, **kwargs):
         try:
-            return self.partition_file_manager.list_partitions()
-        except Exception:
-            self.logger.exception("Failed to list partitions.")
+            return self.partition_file_manager.list_partitions(**kwargs)
+        except Exception as e:
+            self.logger.exception(f"Failed to list partitions: {e}")
             raise
 
     def collection_exists(self, collection_name: str):
@@ -647,7 +662,7 @@ class MilvusDB(ABCVectorDB):
             def prepare_metadata(res: dict):
                 metadata = {}
                 for k, v in res.items():
-                    if k not in excluded_keys:
+                    if not k in excluded_keys:
                         if k == "vector":
                             v = str(np.array(v).flatten().tolist())
                         metadata[k] = v
@@ -684,322 +699,324 @@ class MilvusDB(ABCVectorDB):
             )
             raise
 
+# class QdrantDB(ABCVectorDB):
+#     """
+#     QdrantDB is a class that provides an interface to interact with a Qdrant vector database. It allows for the initialization of a Qdrant client, setting and getting collection names, performing asynchronous searches, adding documents, retrieving file points, deleting points, and checking for the existence of files and collections.
+#     Attributes:
+#         logger: Logger instance for logging information.
+#         embeddings: Embeddings used for vector storage.
+#         port: Port number of the Qdrant server.
+#         host: Host address of the Qdrant server.
+#         client: Qdrant client instance.
+#         sparse_embeddings: Sparse embeddings for hybrid retrieval mode.
+#         retrieval_mode: Mode of retrieval (HYBRID or DENSE).
+#         default_collection_name: Default collection name.
+#         _collection_name: Current collection name.
+#         vector_store: Instance of QdrantVectorStore.
+#     Methods:
+#         __init__(host, port, embeddings, collection_name, logger, hybrid_mode):
+#             Initializes the QdrantDB instance with the given parameters.
+#         collection_name:
+#             Property to get and set the collection name.
+#         get_collections() -> list[str]:
+#             Asynchronously retrieves a list of collection names from the Qdrant database.
+#         async_search(query, top_k, similarity_threshold, collection_name) -> list[Document]:
+#             Asynchronously searches for documents in the specified collection based on the query.
+#         async_multy_query_search(queries, top_k_per_query, similarity_threshold, collection_name) -> list[Document]:
+#             Asynchronously performs multiple queries and retrieves documents for each query.
+#         async_add_documents(chunks, collection_name) -> None:
+#             Asynchronously adds documents to the specified collection.
+#         get_file_points(filter, collection_name, limit) -> list:
+#             Retrieves points associated with a file from the Qdrant database based on the filter.
+#         delete_points(points, collection_name) -> None:
+#             Deletes points from the specified collection in the Qdrant database.
+#         file_exists(file_name, collection_name) -> bool:
+#             Checks if a file exists in the specified collection in the Qdrant database.
+#         collection_exists(collection_name) -> bool:
+#             Checks if a collection exists in the Qdrant database.
+#     """
 
-class QdrantDB(ABCVectorDB):
-    """
-    QdrantDB is a class that provides an interface to interact with a Qdrant vector database. It allows for the initialization of a Qdrant client, setting and getting collection names, performing asynchronous searches, adding documents, retrieving file points, deleting points, and checking for the existence of files and collections.
-    Attributes:
-        logger: Logger instance for logging information.
-        embeddings: Embeddings used for vector storage.
-        port: Port number of the Qdrant server.
-        host: Host address of the Qdrant server.
-        client: Qdrant client instance.
-        sparse_embeddings: Sparse embeddings for hybrid retrieval mode.
-        retrieval_mode: Mode of retrieval (HYBRID or DENSE).
-        default_collection_name: Default collection name.
-        _collection_name: Current collection name.
-        vector_store: Instance of QdrantVectorStore.
-    Methods:
-        __init__(host, port, embeddings, collection_name, logger, hybrid_mode):
-            Initializes the QdrantDB instance with the given parameters.
-        collection_name:
-            Property to get and set the collection name.
-        get_collections() -> list[str]:
-            Asynchronously retrieves a list of collection names from the Qdrant database.
-        async_search(query, top_k, similarity_threshold, collection_name) -> list[Document]:
-            Asynchronously searches for documents in the specified collection based on the query.
-        async_multy_query_search(queries, top_k_per_query, similarity_threshold, collection_name) -> list[Document]:
-            Asynchronously performs multiple queries and retrieves documents for each query.
-        async_add_documents(chunks, collection_name) -> None:
-            Asynchronously adds documents to the specified collection.
-        get_file_points(filter, collection_name, limit) -> list:
-            Retrieves points associated with a file from the Qdrant database based on the filter.
-        delete_points(points, collection_name) -> None:
-            Deletes points from the specified collection in the Qdrant database.
-        file_exists(file_name, collection_name) -> bool:
-            Checks if a file exists in the specified collection in the Qdrant database.
-        collection_exists(collection_name) -> bool:
-            Checks if a collection exists in the Qdrant database.
-    """
+#     def __init__(
+#         self,
+#         host,
+#         port,
+#         embeddings: HuggingFaceBgeEmbeddings | HuggingFaceEmbeddings = None,
+#         collection_name: str = None,
+#         logger=None,
+#         hybrid_mode=True,
+#         **kwargs,
+#     ):
+#         """
+#         Initialize Qdrant_Connector.
 
-    def __init__(
-        self,
-        host,
-        port,
-        embeddings: HuggingFaceBgeEmbeddings | HuggingFaceEmbeddings = None,
-        collection_name: str = None,
-        logger=None,
-        hybrid_mode=True,
-        **kwargs,
-    ):
-        """
-        Initialize Qdrant_Connector.
+#         Args:
+#             host (str): The host of the Qdrant server.
+#             port (int): The port of the Qdrant server.
+#             collection_name (str): The name of the collection in the Qdrant database.
+#             embeddings (list): The embeddings.
+#         """
 
-        Args:
-            host (str): The host of the Qdrant server.
-            port (int): The port of the Qdrant server.
-            collection_name (str): The name of the collection in the Qdrant database.
-            embeddings (list): The embeddings.
-        """
+#         self.logger = logger
+#         self.embeddings: Union[HuggingFaceBgeEmbeddings, HuggingFaceEmbeddings] = (
+#             embeddings
+#         )
+#         self.port = port
+#         self.host = host
+#         self.client = QdrantClient(
+#             port=port,
+#             host=host,
+#             prefer_grpc=False,
+#         )
 
-        self.logger = logger
-        self.embeddings: Union[HuggingFaceBgeEmbeddings, HuggingFaceEmbeddings] = (
-            embeddings
-        )
-        self.port = port
-        self.host = host
-        self.client = QdrantClient(
-            port=port,
-            host=host,
-            prefer_grpc=False,
-        )
+#         self.sparse_embeddings = (
+#             FastEmbedSparse(model_name="Qdrant/bm25") if hybrid_mode else None
+#         )
+#         self.retrieval_mode = (
+#             RetrievalMode.HYBRID if hybrid_mode else RetrievalMode.DENSE
+#         )
+#         logger.info(f"VectorDB retrieval mode: {self.retrieval_mode}")
 
-        self.sparse_embeddings = (
-            FastEmbedSparse(model_name="Qdrant/bm25") if hybrid_mode else None
-        )
-        self.retrieval_mode = (
-            RetrievalMode.HYBRID if hybrid_mode else RetrievalMode.DENSE
-        )
-        logger.info(f"VectorDB retrieval mode: {self.retrieval_mode}")
+#         # Initialize collection-related attributes
+#         self.default_collection_name = None
+#         self._collection_name = None
+#         self.vector_store = None
 
-        # Initialize collection-related attributes
-        self.default_collection_name = None
-        self._collection_name = None
-        self.vector_store = None
+#         # Set the initial collection name (if provided)
+#         if collection_name:
+#             self.default_collection_name = collection_name
+#             self.collection_name = collection_name
 
-        # Set the initial collection name (if provided)
-        if collection_name:
-            self.default_collection_name = collection_name
-            self.collection_name = collection_name
+#     @property
+#     def collection_name(self):
+#         return self._collection_name
 
-    @property
-    def collection_name(self):
-        return self._collection_name
+#     @collection_name.setter
+#     def collection_name(self, name: str):
+#         if not name:
+#             if self.default_collection_name is None:
+#                 raise ValueError("Collection name cannot be empty.")
+#             name = self.default_collection_name
 
-    @collection_name.setter
-    def collection_name(self, name: str):
-        if not name:
-            if self.default_collection_name is None:
-                raise ValueError("Collection name cannot be empty.")
-            name = self.default_collection_name
+#         if self.client.collection_exists(collection_name=name):
+#             self.vector_store = QdrantVectorStore(
+#                 client=self.client,
+#                 collection_name=name,
+#                 embedding=self.embeddings,
+#                 sparse_embedding=self.sparse_embeddings,
+#                 retrieval_mode=self.retrieval_mode,
+#             )
+#             self.logger.warning(f"Collection `{name}` LOADED.")
+#         else:
+#             self.vector_store = QdrantVectorStore.construct_instance(
+#                 embedding=self.embeddings,
+#                 sparse_embedding=self.sparse_embeddings,
+#                 collection_name=name,
+#                 client_options={"port": self.port, "host": self.host},
+#                 retrieval_mode=self.retrieval_mode,
+#             )
+#             self.logger.debug(f"Collection `{name}` CREATED.")
 
-        if self.client.collection_exists(collection_name=name):
-            self.vector_store = QdrantVectorStore(
-                client=self.client,
-                collection_name=name,
-                embedding=self.embeddings,
-                sparse_embedding=self.sparse_embeddings,
-                retrieval_mode=self.retrieval_mode,
-            )
-            self.logger.warning(f"Collection `{name}` LOADED.")
-        else:
-            self.vector_store = QdrantVectorStore.construct_instance(
-                embedding=self.embeddings,
-                sparse_embedding=self.sparse_embeddings,
-                collection_name=name,
-                client_options={"port": self.port, "host": self.host},
-                retrieval_mode=self.retrieval_mode,
-            )
-            self.logger.debug(f"Collection `{name}` CREATED.")
+#         if self.default_collection_name is None:
+#             self.default_collection_name = name
+#             self.logger.info(f"Default collection name set to `{name}`.")
+#         self._collection_name = name
 
-        if self.default_collection_name is None:
-            self.default_collection_name = name
-            self.logger.info(f"Default collection name set to `{name}`.")
-        self._collection_name = name
+#     async def get_collections(self) -> list[str]:
+#         return [c.name for c in self.client.get_collections().collections]
 
-    async def get_collections(self) -> list[str]:
-        return [c.name for c in self.client.get_collections().collections]
+#     async def async_search(
+#         self,
+#         query: str,
+#         top_k: int = 5,
+#         similarity_threshold: int = 0.80,
+#         collection_name: Optional[str] = None,
+#     ) -> list[Document]:
+#         """
+#         Perform an asynchronous search on the vector database.
 
-    async def async_search(
-        self,
-        query: str,
-        top_k: int = 5,
-        similarity_threshold: int = 0.80,
-        collection_name: Optional[str] = None,
-    ) -> list[Document]:
-        """
-        Perform an asynchronous search on the vector database.
+#         Args:
+#             query (str): The search query string.
+#             top_k (int, optional): The number of top results to return. Defaults to 5.
+#             similarity_threshold (int, optional): The minimum similarity score threshold for results. Defaults to 0.80.
+#             collection_name (Optional[str], optional): The name of the collection to search in. If None, the default collection name is used. Defaults to None.
 
-        Args:
-            query (str): The search query string.
-            top_k (int, optional): The number of top results to return. Defaults to 5.
-            similarity_threshold (int, optional): The minimum similarity score threshold for results. Defaults to 0.80.
-            collection_name (Optional[str], optional): The name of the collection to search in. If None, the default collection name is used. Defaults to None.
+#         Returns:
+#             list[Document]: A list of documents that match the search query.
 
-        Returns:
-            list[Document]: A list of documents that match the search query.
+#         Raises:
+#             ValueError: If no collection name is provided and no default collection name is set.
+#             ValueError: If the specified collection does not exist.
+#         """
+#         if collection_name is None:
+#             if self.default_collection_name is None:
+#                 raise ValueError(
+#                     "Collection name not provided and no default collection name set."
+#                 )
+#             self.collection_name = self.default_collection_name
+#         elif not self.collection_exists(collection_name):
+#             raise ValueError(f"Collection {collection_name} does not exist.")
+#         else:
+#             self.collection_name = collection_name
+#         docs_scores = await self.vector_store.asimilarity_search_with_relevance_scores(
+#             query=query, k=top_k, score_threshold=similarity_threshold
+#         )
+#         docs = [doc for doc, score in docs_scores]
+#         return docs
 
-        Raises:
-            ValueError: If no collection name is provided and no default collection name is set.
-            ValueError: If the specified collection does not exist.
-        """
-        if collection_name is None:
-            if self.default_collection_name is None:
-                raise ValueError(
-                    "Collection name not provided and no default collection name set."
-                )
-            self.collection_name = self.default_collection_name
-        elif not self.collection_exists(collection_name):
-            raise ValueError(f"Collection {collection_name} does not exist.")
-        else:
-            self.collection_name = collection_name
-        docs_scores = await self.vector_store.asimilarity_search_with_relevance_scores(
-            query=query, k=top_k, score_threshold=similarity_threshold
-        )
-        docs = [doc for doc, score in docs_scores]
-        return docs
+#     async def async_multy_query_search(
+#         self,
+#         queries: list[str],
+#         top_k_per_query: int = 5,
+#         similarity_threshold: int = 0.80,
+#         collection_name: Optional[str] = None,
+#     ) -> list[Document]:
+#         """
+#         Perform multiple asynchronous search queries concurrently and return the unique retrieved documents.
 
-    async def async_multy_query_search(
-        self,
-        queries: list[str],
-        top_k_per_query: int = 5,
-        similarity_threshold: int = 0.80,
-        collection_name: Optional[str] = None,
-    ) -> list[Document]:
-        """
-        Perform multiple asynchronous search queries concurrently and return the unique retrieved documents.
+#         Args:
+#             queries (list[str]): A list of search query strings.
+#             top_k_per_query (int, optional): The number of top results to retrieve per query. Defaults to 5.
+#             similarity_threshold (int, optional): The similarity threshold for filtering results. Defaults to 0.80.
+#             collection_name (Optional[str], optional): The name of the collection to search within. Defaults to None.
 
-        Args:
-            queries (list[str]): A list of search query strings.
-            top_k_per_query (int, optional): The number of top results to retrieve per query. Defaults to 5.
-            similarity_threshold (int, optional): The similarity threshold for filtering results. Defaults to 0.80.
-            collection_name (Optional[str], optional): The name of the collection to search within. Defaults to None.
+#         Returns:
+#             list[Document]: A list of unique retrieved documents.
+#         """
+#         # Set the collection name
+#         self.collection_name = collection_name
+#         # Gather all search tasks concurrently
+#         search_tasks = [
+#             self.async_search(
+#                 query=query,
+#                 top_k=top_k_per_query,
+#                 similarity_threshold=similarity_threshold,
+#                 collection_name=collection_name,
+#             )
+#             for query in queries
+#         ]
+#         retrieved_results = await asyncio.gather(*search_tasks)
+#         retrieved_chunks = {}
+#         # Process the retrieved documents
+#         for retrieved in retrieved_results:
+#             if retrieved:
+#                 for document in retrieved:
+#                     retrieved_chunks[document.metadata["_id"]] = document
+#         return list(retrieved_chunks.values())
 
-        Returns:
-            list[Document]: A list of unique retrieved documents.
-        """
-        # Set the collection name
-        self.collection_name = collection_name
-        # Gather all search tasks concurrently
-        search_tasks = [
-            self.async_search(
-                query=query,
-                top_k=top_k_per_query,
-                similarity_threshold=similarity_threshold,
-                collection_name=collection_name,
-            )
-            for query in queries
-        ]
-        retrieved_results = await asyncio.gather(*search_tasks)
-        retrieved_chunks = {}
-        # Process the retrieved documents
-        for retrieved in retrieved_results:
-            if retrieved:
-                for document in retrieved:
-                    retrieved_chunks[document.metadata["_id"]] = document
-        return list(retrieved_chunks.values())
+#     async def async_add_documents(
+#         self, chunks: list[Document], collection_name: Optional[str] = None
+#     ) -> None:
+#         """
+#         Asynchronously add documents to the vector store.
+#         Args:
+#             chunks (list[Document]): A list of Document objects to be added.
+#             collection_name (Optional[str]): The name of the collection to which the documents will be added.
+#                                              If None, the default collection name will be used.
+#         Returns:
+#             None
+#         """
+#         # Set the collection name
+#         self.collection_name = collection_name
 
-    async def async_add_documents(
-        self, chunks: list[Document], collection_name: Optional[str] = None
-    ) -> None:
-        """
-        Asynchronously add documents to the vector store.
-        Args:
-            chunks (list[Document]): A list of Document objects to be added.
-            collection_name (Optional[str]): The name of the collection to which the documents will be added.
-                                             If None, the default collection name will be used.
-        Returns:
-            None
-        """
-        # Set the collection name
-        self.collection_name = collection_name
+#         await self.vector_store.aadd_documents(chunks)
+#         self.logger.debug("CHUNKS INSERTED")
 
-        await self.vector_store.aadd_documents(chunks)
-        self.logger.debug("CHUNKS INSERTED")
+#     def get_file_points(
+#         self, filter: dict, collection_name: Optional[str] = None, limit: int = 100
+#     ):
+#         """
+#         Retrieve file points from the vector database based on a filter.
+#         Args:
+#             filter (dict): A dictionary containing the filter key and value.
+#             collection_name (Optional[str], optional): The name of the collection to search in. Defaults to None.
+#             limit (int, optional): The maximum number of results to return. Defaults to 100.
+#         Returns:
+#             List[str]: A list of result IDs that match the filter criteria.
+#         Raises:
+#             Exception: If there is an error during the retrieval process.
+#         """
 
-    def get_file_points(
-        self, filter: dict, collection_name: Optional[str] = None, limit: int = 100
-    ):
-        """
-        Retrieve file points from the vector database based on a filter.
-        Args:
-            filter (dict): A dictionary containing the filter key and value.
-            collection_name (Optional[str], optional): The name of the collection to search in. Defaults to None.
-            limit (int, optional): The maximum number of results to return. Defaults to 100.
-        Returns:
-            List[str]: A list of result IDs that match the filter criteria.
-        Raises:
-            Exception: If there is an error during the retrieval process.
-        """
+#         try:
+#             # Scroll through all vectors
+#             has_more = True
+#             offset = None
+#             results = []
 
-        try:
-            # Scroll through all vectors
-            has_more = True
-            offset = None
-            results = []
+#             key = next(iter(filter))
+#             value = filter[key]
 
-            key = next(iter(filter))
-            value = filter[key]
+#             while has_more:
+#                 response = self.client.scroll(
+#                     collection_name=collection_name
+#                     if collection_name
+#                     else self.default_collection_name,
+#                     scroll_filter=models.Filter(
+#                         must=[
+#                             models.FieldCondition(
+#                                 key=f"metadata.{key}",
+#                                 match=models.MatchValue(value=value),
+#                             )
+#                         ]
+#                     ),
+#                     limit=limit,
+#                     offset=offset,
+#                 )
 
-            while has_more:
-                response = self.client.scroll(
-                    collection_name=collection_name
-                    if collection_name
-                    else self.default_collection_name,
-                    scroll_filter=models.Filter(
-                        must=[
-                            models.FieldCondition(
-                                key=f"metadata.{key}",
-                                match=models.MatchValue(value=value),
-                            )
-                        ]
-                    ),
-                    limit=limit,
-                    offset=offset,
-                )
+#                 # Add points that contain the filename in metadata.source
+#                 results.extend(response[0])
+#                 has_more = response[1]  # Check if there are more results
+#                 offset = response[1] if has_more else None
 
-                # Add points that contain the filename in metadata.source
-                results.extend(response[0])
-                has_more = response[1]  # Check if there are more results
-                offset = response[1] if has_more else None
+#                 if limit == 1:
+#                     return [results[0].id] if results else []
 
-                if limit == 1:
-                    return [results[0].id] if results else []
+#             # Return list of result ids
+#             return [res.id for res in results]
 
-            # Return list of result ids
-            return [res.id for res in results]
+#         except Exception as e:
+#             self.logger.error(f"Couldn't get file points for {key} {value}: {e}")
+#             raise
 
-        except Exception as e:
-            self.logger.error(f"Couldn't get file points for {key} {value}: {e}")
-            raise
+#     def delete_file_points(self, points: list, collection_name: Optional[str] = None):
+#         """
+#         Delete points from Qdrant
+#         """
+#         try:
+#             self.client.delete(
+#                 collection_name=collection_name
+#                 if collection_name
+#                 else self.default_collection_name,
+#                 points_selector=models.PointIdsList(points=points),
+#             )
+#         except Exception as e:
+#             self.logger.error(f"Error in `delete_points`: {e}")
 
-    def delete_file_points(self, points: list, collection_name: Optional[str] = None):
-        """
-        Delete points from Qdrant
-        """
-        try:
-            self.client.delete(
-                collection_name=collection_name
-                if collection_name
-                else self.default_collection_name,
-                points_selector=models.PointIdsList(points=points),
-            )
-        except Exception as e:
-            self.logger.error(f"Error in `delete_points`: {e}")
+#     def file_exists(self, file_name: str, collection_name: Optional[str] = None):
+#         """
+#         Check if a file exists in Qdrant
+#         """
+#         try:
+#             # Get points associated with the file name
+#             points = self.get_file_points(
+#                 {"file_name": file_name}, collection_name, limit=1
+#             )
+#             return True if points else False
+#         except Exception as e:
+#             self.logger.error(f"Error in `file_exists` for {file_name}: {e}")
+#             return False
 
-    def file_exists(self, file_name: str, collection_name: Optional[str] = None):
-        """
-        Check if a file exists in Qdrant
-        """
-        try:
-            # Get points associated with the file name
-            points = self.get_file_points(
-                {"file_name": file_name}, collection_name, limit=1
-            )
-            return True if points else False
-        except Exception as e:
-            self.logger.error(f"Error in `file_exists` for {file_name}: {e}")
-            return False
-
-    def collection_exists(self, collection_name: str):
-        """
-        Check if a collection exists in Qdrant
-        """
-        return self.client.collection_exists(collection_name)
+#     def collection_exists(self, collection_name: str):
+#         """
+#         Check if a collection exists in Qdrant
+#         """
+#         return self.client.collection_exists(collection_name)
 
 
 class ConnectorFactory:
-    CONNECTORS = {"milvus": MilvusDB, "qdrant": QdrantDB}
+    CONNECTORS = {
+        "milvus": MilvusDB,
+        # "qdrant": QdrantDB,
+    }
 
     @staticmethod
     def create_vdb(config, logger, embeddings) -> ABCVectorDB:
@@ -1017,6 +1034,9 @@ class ConnectorFactory:
 
         dbconfig["embeddings"] = embeddings
         dbconfig["logger"] = logger
-        dbconfig["db_dir"] = config.paths.db_dir
+        dbconfig["rdb_host"] = "rdb"
+        dbconfig["rdb_port"] = config["rdb"].port
+        dbconfig["rdb_user"] = config["rdb"].user
+        dbconfig["rdb_password"] = config["rdb"].password
 
         return vdb_cls(**dbconfig)

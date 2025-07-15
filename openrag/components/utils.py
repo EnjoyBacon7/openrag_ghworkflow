@@ -11,7 +11,6 @@ from langchain_core.documents.base import Document
 # Global variables
 config = load_config()
 
-
 class SingletonMeta(type):
     _instances = {}
     _lock = threading.Lock()  # Ensures thread safety
@@ -81,7 +80,7 @@ class DistributedSemaphore:
     def __init__(
         self,
         name: str = "llmSemaphore",
-        namespace="ragondin",
+        namespace="openrag",
         max_concurrent_ops: int = 10,
     ):
         try:
@@ -128,7 +127,6 @@ def format_context(docs: list[Document]) -> str:
         context += "-" * 40 + "\n\n"
 
     return context
-
 
 # llmSemaphore = LLMSemaphore(max_concurrent_ops=config.semaphore.llm_semaphore)
 llmSemaphore = DistributedSemaphore(

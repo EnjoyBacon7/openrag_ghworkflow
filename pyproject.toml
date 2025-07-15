@@ -1,5 +1,5 @@
 [project]
-name = "ragondin"
+name = "openrag"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -9,7 +9,6 @@ dependencies = [
     "chainlit>=2.2.1",
     "docling>=2.24.0",
     "einops>=0.8.1",
-    "fastembed-gpu>=0.4.2",
     "hydra-core>=1.3.2",
     "langchain-community>=0.3.18",
     "langchain-core>=0.3.39",
@@ -22,7 +21,6 @@ dependencies = [
     "markitdown>=0.0.2",
     "pydub>=0.25.1",
     "pymupdf4llm>=0.0.17",
-    "ragatouille>=0.0.9",
     "spire-doc>=13.1.0",
     "markitdown>=0.0.2",
     "openai>=1.64.0",
@@ -42,6 +40,8 @@ dependencies = [
     "umap-learn>=0.5.7",
     "eml-parser>=2.0.0",
     "psutil>=7.0.0",
+    "psycopg2",
+    "sqlalchemy_utils",
 ]
 
 [dependency-groups]

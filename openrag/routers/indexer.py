@@ -3,10 +3,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+import ray
+
 from config.config import load_config
 from fastapi import (
     APIRouter,
     Depends,
+    File,
     Form,
     HTTPException,
     Request,
@@ -24,9 +27,14 @@ logger = get_logger()
 # load config
 config = load_config()
 DATA_DIR = config.paths.data_dir
-ACCEPTED_FILE_FORMATS = dict(config.loader["file_loaders"]).keys()
+
 FORBIDDEN_CHARS_IN_FILE_ID = set("/")  # set('"<>#%{}|\\^`[]')
 LOG_FILE = Path(config.paths.log_dir or "logs") / "app.json"
+
+# supported file formats or mimetypes
+ACCEPTED_FILE_FORMATS = dict(config.loader["file_loaders"]).keys()
+DICT_MIMETYPES = dict(config.loader["mimetypes"])
+
 
 # Get the TaskStateManager actor
 task_state_manager = get_task_state_manager()
@@ -54,18 +62,6 @@ async def validate_file_id(file_id: str):
     return file_id
 
 
-async def validate_file_format(file: UploadFile):
-    file_extension = (
-        file.filename.split(".")[-1].lower() if "." in file.filename else ""
-    )
-    if file_extension not in ACCEPTED_FILE_FORMATS:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"Unsupported file format: {file_extension}. Supported formats are: {', '.join(ACCEPTED_FILE_FORMATS)}",
-        )
-    return file
-
-
 async def validate_metadata(metadata: Optional[Any] = Form(None)):
     try:
         processed_metadata = metadata or "{}"
@@ -77,6 +73,30 @@ async def validate_metadata(metadata: Optional[Any] = Form(None)):
         )
 
 
+async def validate_file_format(
+    file: UploadFile,
+    metadata: dict = Depends(validate_metadata),
+):
+    file_extension = (
+        file.filename.split(".")[-1].lower() if "." in file.filename else ""
+    )
+    mimetype = metadata.get("mimetype", None)
+
+    if (
+        file_extension not in ACCEPTED_FILE_FORMATS
+        and mimetype not in DICT_MIMETYPES.keys()
+    ):
+        details = (
+            f"Unsupported file format: {file_extension} or file mimetype.\n"
+            f"Supported formats: {', '.join(ACCEPTED_FILE_FORMATS)}\n"
+            f"Supported mimetypes: {', '.join(DICT_MIMETYPES.keys())}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=details,
+        )
+    return file
+
 def _human_readable_size(size_bytes: int) -> str:
     """Convert bytes to a human-readable format (e.g., '2.4 MB')."""
     for unit in ["B", "KB", "MB", "GB", "TB"]:
@@ -86,7 +106,40 @@ def _human_readable_size(size_bytes: int) -> str:
     return f"{size_bytes:.2f} PB"
 
 
-@router.post("/partition/{partition}/file/{file_id}")
+@router.get("/supported/types")
+async def get_supported_types():
+    list_extensions = list(ACCEPTED_FILE_FORMATS)
+    return JSONResponse(content={"supported_types": list_extensions})
+
+
+@router.post(
+    "/partition/{partition}/file/{file_id}",
+    description="""Upload and index a new file.
+    
+    **File Type Support:**
+    - Supports standard file extensions listed in `/supported/types`
+    - For unsupported extensions, specify `mimetype` in metadata
+    
+    **Metadata Format:**
+    JSON string containing file metadata. Example:
+    ```json
+    {
+        "mimetype": "text/plain",
+        "author": "John Doe",
+        ...
+    }
+    ```
+    
+    **Common Mimetypes:**
+    - `text/plain` - Plain text files
+    - `text/markdown` - Markdown files  
+    - `application/pdf` - PDF documents
+    - `message/rfc822` - Email files
+    
+    **Response:**
+    Returns 201 Created with a task status URL for tracking indexing progress.
+    """,
+)
 async def add_file(
     request: Request,
     partition: str,
@@ -147,6 +200,7 @@ async def add_file(
 async def delete_file(partition: str, file_id: str):
     try:
         deleted = await indexer.delete_file.remote(file_id, partition)
+
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -172,11 +226,12 @@ async def put_file(
     log = logger.bind(file_id=file_id, partition=partition, filename=file.filename)
 
     if not await vectordb.file_exists.remote(file_id, partition):
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"File '{file_id}' not found in partition '{partition}'.",
         )
-
+        
     try:
         await indexer.delete_file.remote(file_id, partition)
     except Exception:

@@ -40,11 +40,15 @@ vectordb:
   hybrid_mode: true
   enable: true
 
+rdb:
+  port: ${oc.env:POSTGRES_PORT, 5432}
+  user: ${oc.env:POSTGRES_USER, root}
+  password: ${oc.env:POSTGRES_PASSWORD, root_password}
+
 reranker:
   enable: ${oc.decode:${oc.env:RERANKER_ENABLED, true}}
   model_name: ${oc.env:RERANKER_MODEL, Alibaba-NLP/gte-multilingual-reranker-base}
-  reranker_type: ${oc.decode:${oc.env:RERANKER_MODEL_TYPE, colbert}}
-  top_k: ${oc.decode:${oc.env:RERANKER_TOP_K, 4}}
+  top_k: ${oc.decode:${oc.env:RERANKER_TOP_K, 5}}
   base_url: ${oc.env:RERANKER_BASE_URL, http://reranker:${oc.env:RERANKER_PORT, 7997}}
 
 grader:
@@ -61,7 +65,7 @@ paths:
   log_dir: ${oc.env:LOG_DIR, /app/logs}
 
 prompt:
-  rag_sys_pmpt: rag_sys_prompt_template.txt # rag_sys_pmpt_tmpl_ifa.txt
+  rag_sys_pmpt: rag_sys_prompt_template.txt
   contextualizer_pmpt: contextualizer_pmpt.txt
   chunk_contextualizer_pmpt: chunk_contextualizer_tmpl.txt
   image_describer: image_captioning.txt
@@ -69,10 +73,22 @@ prompt:
 loader:
   image_captioning: true
   save_markdown: false
-  audio_model: ${oc.env:WHISPER_MODEL, base}
+  audio_model: ${oc.env:WHISPER_MODEL, base} # tiny, base, small, medium, large-v1, large-v2, large-v3
+  mimetypes:
+    text/plain: .txt
+    text/markdown: .md
+    application/pdf: .pdf
+    message/rfc822: .eml
+    application/vnd.openxmlformats-officedocument.wordprocessingml.document: .docx
+    application/vnd.openxmlformats-officedocument.presentationml.presentation: .pptx
+    application/msword: .doc
+    image/png: .png
+    image/jpeg: .jpeg
+    audio/vnd.wav: .wav
+    audio/mpeg: .mp3
   file_loaders:
     txt: TextLoader
-    pdf: ${oc.env:PDFLoader, DoclingLoader}  # DoclingLoader # MarkerLoader # PyMuPDFLoader # Custompymupdf4llm
+    pdf: ${oc.env:PDFLoader, MarkerLoader}  # DoclingLoader # MarkerLoader # PyMuPDFLoader # Custompymupdf4llm
     eml: EmlLoader
     docx: MarkItDownLoader
     pptx: PPTXLoader
@@ -97,7 +113,7 @@ loader:
   marker_timeout: ${oc.decode:${oc.env:MARKER_TIMEOUT, 3600}}
 
 ray:
-  num_gpus: ${oc.decode:${oc.env:RAY_NUM_GPUS, 0.1}}
+  num_gpus: ${oc.decode:${oc.env:RAY_NUM_GPUS, 0.01}}
   pool_size: ${oc.decode:${oc.env:RAY_POOL_SIZE, 1}}
   max_tasks_per_worker: ${oc.decode:${oc.env:RAY_MAX_TASKS_PER_WORKER, 5}}
   indexer:

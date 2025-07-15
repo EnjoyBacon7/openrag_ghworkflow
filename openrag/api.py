@@ -6,7 +6,8 @@ from dotenv import dotenv_values
 SHARED_ENV = os.environ.get("SHARED_ENV", None)
 
 env_vars = dotenv_values(SHARED_ENV) if SHARED_ENV else {}
-env_vars["PYTHONPATH"] = "/app/ragondin"
+env_vars["PYTHONPATH"] = "/app/openrag"
+
 
 
 ray.init(dashboard_host="0.0.0.0")
@@ -38,6 +39,7 @@ config = load_config()
 DATA_DIR = Path(config.paths.data_dir)
 
 vectordb = get_vectordb()
+
 ragPipe = RagPipeline(config=config, vectordb=vectordb, logger=logger)
 
 
@@ -64,6 +66,7 @@ AUTH_TOKEN: Optional[str] = os.getenv("AUTH_TOKEN")
 
 INDEXERUI_URL: Optional[str] = os.getenv("INDEXERUI_URL", None)
 INDEXERUI_COMPOSE_FILE = os.getenv("INDEXERUI_COMPOSE_FILE", None)
+INDEXERUI_PORT: Optional[str] = os.getenv("INDEXERUI_PORT", "3042")
 
 
 security = HTTPBearer()
@@ -86,10 +89,14 @@ app = FastAPI(dependencies=dependencies)
 
 # Add CORS middleware
 if INDEXERUI_URL and INDEXERUI_COMPOSE_FILE:
-    allow_origins = [INDEXERUI_URL]
+    allow_origins = [
+        "http://localhost:3042",
+        "http://localhost:5173",
+        INDEXERUI_URL,
+        f"http://localhost:{INDEXERUI_PORT}",
+    ]
 else:
     allow_origins = ["*"]
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -137,8 +144,6 @@ if WITH_OPENAI_API:
 if WITH_CHAINLIT_UI:
     # Mount the default front
     from chainlit.utils import mount_chainlit
-
-    logger.debug("Mounting Chainlit UI")
 
     mount_chainlit(app, "./chainlit/app_front.py", path="/chainlit")
     app.include_router(

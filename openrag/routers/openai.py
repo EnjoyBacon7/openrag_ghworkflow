@@ -41,36 +41,51 @@ async def check_llm_model_availability(request: Request):
             )
 
 
-@router.get("/models")
+@router.get(
+    "/models",
+    summary="OpenAI-compatible model listing endpoint",
+    description="""
+    OpenAI-compatible endpoint to list all available models.
+    
+    Returns a list of models that can be used with OpenRAG, including:
+    - All available partitions formatted as 'openrag-{partition_name}'
+    - A special 'openrag-all' model to query across all partitions
+    
+    The response format mimics the OpenAI models listing API for compatibility.
+    """,
+    response_description="A list of available models in OpenAI format",
+)
 async def list_models(
     app_state=Depends(get_app_state), _: None = Depends(check_llm_model_availability)
 ):
-    partitions = await app_state.vectordb.list_partitions.remote()
+    partitions = app_state.vectordb.list_partitions.remote()
     logger.debug("Listing models", partition_count=len(partitions))
-    models = [
-        {
-            "id": f"ragondin-{partition.partition}",
-            "object": "model",
-            "created": int(partition.created_at.timestamp()),
-            "owned_by": "RAGondin",
-        }
-        for partition in partitions
-    ]
+
+    models = []
+    for partition in partitions:
+        models.append(
+            {
+                "id": f"openrag-{partition['partition']}",
+                "object": "model",
+                "created": partition["created_at"],
+                "owned_by": "OpenRAG",
+            }
+        )
+
     models.append(
-        {"id": "ragondin-all", "object": "model", "created": 0, "owned_by": "RAGondin"}
+        {"id": "openrag-all", "object": "model", "created": 0, "owned_by": "OpenRAG"}
     )
     return JSONResponse(content={"object": "list", "data": models})
 
 
 async def __get_partition_name(model_name, app_state):
-    if not model_name.startswith("ragondin-"):
+    if not model_name.startswith("openrag-"):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Model not found. Model should respect this format `ragondin-{partition}`",
+            detail="Model not found. Model should respect this format `openrag-{partition}`",
         )
-    partition = model_name.split("ragondin-")[1]
-    partition_exists = await app_state.vectordb.partition_exists.remote(partition)
-    if partition != "all" and not partition_exists:
+    partition = model_name.split("openrag-")[1]
+    if partition != "all" and not await app_state.vectordb.partition_exists.remote(partition):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Partition `{partition}` not found for given model `{model_name}`",
@@ -95,8 +110,22 @@ def __prepare_sources(request: Request, docs: list[Document]):
         )
     return links
 
+@router.post(
+    "/chat/completions",
+    summary="OpenAI compatible chat completion endpoint using RAG",
+    description="""
+    OpenAI-compatible chat completion endpoint that leverages Retrieval-Augmented Generation (RAG).
+    
+    This endpoint accepts chat messages in OpenAI format and uses the specified model to generate
+    a completion. The model selection determines which document partition(s) will be queried:
+    - 'openrag-{partition_name}': Queries only the specified partition
+    - 'openrag-all': Queries across all available partitions
+    
+    Previous messages provide conversation context. The system enriches the prompt with relevant documents retrieved
+    from the vector database before sending to the LLM.
+    """,
+)
 
-@router.post("/chat/completions")
 async def openai_chat_completion(
     request2: Request,
     request: OpenAIChatCompletionRequest = Body(...),
@@ -119,6 +148,7 @@ async def openai_chat_completion(
 
     try:
         partition = await __get_partition_name(model_name, app_state)
+
     except Exception as e:
         log.warning(f"Invalid model or partition: {e}")
         raise
@@ -171,8 +201,22 @@ async def openai_chat_completion(
                 detail="No response from LLM",
             )
 
+@router.post(
+    "/completions",
+    summary="OpenAI compatible completion endpoint using RAG",
+    description="""
+    OpenAI-compatible text completion endpoint that leverages Retrieval-Augmented Generation (RAG).
+    
+    This endpoint accepts a prompt in OpenAI format and uses the specified model to generate
+    a text completion. The model selection determines which document partition(s) will be queried:
+    - 'openrag-{partition_name}': Queries only the specified partition
+    - 'openrag-all': Queries across all available partitions
+    
+    The system enriches the prompt with relevant documents retrieved from the vector database
+    before sending to the LLM, allowing the completion to include information from your document store.
+    """,
+)
 
-@router.post("/completions")
 async def openai_completion(
     request2: Request,
     request: OpenAICompletionRequest,
@@ -198,6 +242,7 @@ async def openai_completion(
 
     try:
         partition = await __get_partition_name(model_name, app_state)
+        
     except Exception as e:
         log.warning(f"Invalid model or partition: {e}")
         raise

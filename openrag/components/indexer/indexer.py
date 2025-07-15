@@ -1,6 +1,7 @@
 import asyncio
 import gc
 import os
+import inspect
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -45,7 +46,7 @@ class Indexer:
             api_key=self.config.embedder.get("api_key"),
         )
 
-        self.serializer_queue = ray.get_actor("SerializerQueue", namespace="ragondin")
+        self.serializer_queue = ray.get_actor("SerializerQueue", namespace="openrag")
 
         # Initialize chunker
         self.chunker: BaseChunker = ChunkerFactory.create_chunker(
@@ -193,6 +194,7 @@ class Indexer:
                 return False
 
             await self.vectordb.delete_file_points.remote(points, file_id, partition)
+
             log.info("Deleted file from partition.")
             return True
         except Exception:
@@ -216,6 +218,7 @@ class Indexer:
 
             await self.delete_file(file_id, partition)
             await self.vectordb.async_add_documents.remote(docs)
+
             log.info("Metadata updated for file.")
         except Exception:
             log.exception("Error in update_file_metadata")
@@ -231,6 +234,7 @@ class Indexer:
         filter: Optional[Dict] = {},
     ) -> List[Document]:
         partition_list = self._check_partition_list(partition)
+        
         return await self.vectordb.async_search.remote(
             query=query,
             partition=partition_list,
@@ -258,7 +262,6 @@ class Indexer:
         if isinstance(partition, list) and all(isinstance(p, str) for p in partition):
             return partition
         raise ValueError("Partition must be a string or a list of strings.")
-
 
 @dataclass
 class TaskInfo:

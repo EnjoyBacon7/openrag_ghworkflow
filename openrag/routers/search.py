@@ -11,7 +11,6 @@ router = APIRouter()
 
 indexer = get_indexer()
 
-
 @router.get("")
 async def search_multiple_partitions(
     request: Request,

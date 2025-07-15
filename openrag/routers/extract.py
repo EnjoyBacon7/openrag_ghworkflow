@@ -9,7 +9,6 @@ logger = get_logger()
 router = APIRouter()
 vectordb = get_vectordb()
 
-
 @router.get("/{extract_id}")
 async def get_extract(extract_id: str):
     log = logger.bind(extract_id=extract_id)

@@ -33,7 +33,7 @@ async def __get_relevant_chunks(
     query: str,
     partition: str = "all",
     top_k: int = 8,
-    ragondin_api_base_url: str = None,
+    openrag_api_base_url: str = None,
     sempahore: asyncio.Semaphore = None,
     llm_semaphore: asyncio.Semaphore = None,
     add_chunk_relevancy: bool = False,
@@ -45,7 +45,7 @@ async def __get_relevant_chunks(
             try:
                 async with httpx.AsyncClient(timeout=httpx.Timeout(4 * 60)) as client:
                     res = await client.get(
-                        url=f"{ragondin_api_base_url}/search/partition/{partition}",
+                        url=f"{openrag_api_base_url}/search/partition/{partition}",
                         params={
                             "text": query,
                             "top_k": top_k,
@@ -72,7 +72,7 @@ async def main():
     instruction_file = "./data/instruction.csv"
     query_file = "./data/queries.csv"
     qrel_file = "./data/qrels.csv"
-    embedder = os.environ.get('EMBEDDER_MODEL_NAME')
+    embedder = os.environ.get("EMBEDDER_MODEL_NAME")
     output_file = f"./data/retrieved_chunks_{embedder}.json"
 
     partition = "benchmark"
@@ -83,7 +83,7 @@ async def main():
 
     num_port = os.environ.get("APP_PORT")
     num_host = "localhost"
-    ragondin_api_base_url = f"http://{num_host}:{num_port}/"
+    openrag_api_base_url = f"http://{num_host}:{num_port}/"
 
     # load files
     instruction_file = open(instruction_file, "r", encoding="utf-8")
@@ -104,7 +104,7 @@ async def main():
             query=entry_instruction["instruction"] + entry_query["text"],
             partition=partition,
             top_k=top_k,
-            ragondin_api_base_url=ragondin_api_base_url,
+            openrag_api_base_url=openrag_api_base_url,
             sempahore=semaphore,
             llm_semaphore=llm_semaphore,
             add_chunk_relevancy=True,
@@ -115,7 +115,9 @@ async def main():
     data = await tqdm.gather(*tasks, desc="Generating data for evaluation")
 
     data2 = []
-    for instruction, query, qrel, chunks in zip(instructions_list, queries_list, qrels_list, data):
+    for instruction, query, qrel, chunks in zip(
+        instructions_list, queries_list, qrels_list, data
+    ):
         instruction["query"] = query["text"]
         instruction["response_id"] = qrel["corpus-id"]
         instruction["all_retrieved_chunks"] = chunks
