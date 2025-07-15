@@ -21,6 +21,7 @@ else:  # On CPU
 POOL_SIZE = config.ray.get("pool_size")
 MAX_TASKS_PER_WORKER = config.ray.get("max_tasks_per_worker")
 
+DICT_MIMETYPES = dict(config.loader["mimetypes"])
 
 @ray.remote(num_gpus=NUM_GPUS)
 class DocSerializer:
@@ -57,9 +58,15 @@ class DocSerializer:
 
         p = Path(path)
         file_ext = p.suffix
-
+        mimetype = metadata.get("mimetype", None)
         # Get appropriate loader for the file type
-        loader_cls = self.loader_classes.get(file_ext)
+        if mimetype is None:
+            loader_cls = self.loader_classes.get(file_ext)
+        else:
+            loader_cls = self.loader_classes.get(
+                DICT_MIMETYPES.get(mimetype)
+            )
+
         if loader_cls is None:
             log.warning(f"No loader available for {p.name}")
             raise ValueError(f"No loader available for file type {file_ext}.")

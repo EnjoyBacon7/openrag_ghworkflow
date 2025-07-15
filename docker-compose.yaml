@@ -14,7 +14,6 @@ x-openrag: &openrag_template
     - ${DATA_VOLUME:-./data}:/app/data
     - ${MODEL_WEIGHTS_VOLUME:-~/.cache/huggingface}:/app/model_weights # Model weights for RAG
     - ./openrag:/app/openrag # For dev mode
-    - ${DB_VOLUME:-./db}:/app/db
     - /$SHARED_ENV:/ray_mount/.env # Shared environment variables
     - /ray_mount/logs:/app/logs
   ports:
@@ -30,7 +29,22 @@ x-openrag: &openrag_template
   depends_on:
     - milvus
 
-
+x-vllm: &vllm_template
+  networks:
+    default:
+      aliases:
+        - vllm
+  restart: always
+  environment:
+    - HUGGING_FACE_HUB_TOKEN
+  ipc: "host"
+  volumes:
+    - ${VLLM_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface # put ./vllm_cache if you want to have the weights on the vllm_cache folder in your project
+  command: >
+    --model ${EMBEDDER_MODEL_NAME:-jinaai/jina-embeddings-v3}
+    --trust-remote-code
+  ports:
+    - ${VLLM_PORT:-8000}:8000
 services:
   # GPU - default 
   openrag:
@@ -51,3 +65,37 @@ services:
     deploy: {}
     profiles:
       - 'cpu'
+
+  rdb:
+    image: postgres:15
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-root_password}
+      - POSTGRES_USER=${POSTGRES_USER:-root}
+    volumes:
+      - ${DB_VOLUME:-./db}:/var/lib/postgresql/data
+
+  vllm-gpu:
+    <<: *vllm_template
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all 
+              capabilities: [gpu]
+    profiles:
+      - '' # Empty string gives default behavior (but does not run when cpu requested)
+
+  vllm-cpu:
+    <<: *vllm_template
+    build:
+      context: extern/vllm
+      dockerfile: Dockerfile.cpu
+      target: vllm-openai
+    image: openrag-vllm-openai-cpu
+    deploy: {}
+    profiles:
+      - 'cpu'
+
