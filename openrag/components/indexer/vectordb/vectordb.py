@@ -1,19 +1,14 @@
 import asyncio
 import random
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import numpy as np
 import ray
-
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_core.documents.base import Document
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_milvus import BM25BuiltInFunction, Milvus
 from langchain_openai import OpenAIEmbeddings
-from langchain_qdrant import FastEmbedSparse, QdrantVectorStore, RetrievalMode
 from pymilvus import MilvusClient
-from qdrant_client import QdrantClient, models
 
 from .utils import PartitionFileManager
 
@@ -99,6 +94,7 @@ class ABCVectorDB(ABC):
     def list_partitions(self, **kwargs):
         pass
 
+
 @ray.remote
 class MilvusDB(ABCVectorDB):
     """
@@ -128,7 +124,6 @@ class MilvusDB(ABCVectorDB):
     """
 
     def __init__(self):
-
         """
         Initialize Milvus.
 
@@ -161,7 +156,6 @@ class MilvusDB(ABCVectorDB):
 
         index_params = None
         if self.hybrid_mode:
-
             index_params = INDEX_PARAMS
         else:
             index_params = {"metric_type": "COSINE", "index_type": "FLAT"}
@@ -173,16 +167,16 @@ class MilvusDB(ABCVectorDB):
         self.vector_store = None
         self.partition_file_manager: PartitionFileManager = None
         self.default_partition = "_default"
-        self.rdb_host = kwargs.get("rdb_host", None)
-        self.rdb_port = kwargs.get("rdb_port", None)
-        self.rdb_user = kwargs.get("rdb_user", None)
-        self.rdb_password = kwargs.get("rdb_password", None)
+        self.rdb_host = self.config.rdb.host
+        self.rdb_port = self.config.rdb.port
+        self.rdb_user = self.config.rdb.user
+        self.rdb_password = self.config.rdb.password
 
         # Set the initial collection name (if provided)
+        collection_name = self.config.vectordb.collection_name
         if collection_name:
             self.default_collection_name = collection_name
             self.collection_name = collection_name
-
 
     @property
     def collection_name(self):
@@ -662,7 +656,7 @@ class MilvusDB(ABCVectorDB):
             def prepare_metadata(res: dict):
                 metadata = {}
                 for k, v in res.items():
-                    if not k in excluded_keys:
+                    if k not in excluded_keys:
                         if k == "vector":
                             v = str(np.array(v).flatten().tolist())
                         metadata[k] = v
@@ -698,6 +692,7 @@ class MilvusDB(ABCVectorDB):
                 f"Error in `list_chunk_ids` for partition {partition}: {e}"
             )
             raise
+
 
 # class QdrantDB(ABCVectorDB):
 #     """

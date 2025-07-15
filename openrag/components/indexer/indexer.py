@@ -1,7 +1,6 @@
 import asyncio
 import gc
 import os
-import inspect
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -53,15 +52,14 @@ class Indexer:
             self.config, embedder=self.embedder
         )
 
-        self.vectordb = ray.get_actor("Vectordb", namespace="ragondin")
+        self.vectordb = ray.get_actor("Vectordb", namespace="openrag")
 
-        self.task_state_manager = ray.get_actor(
-            "TaskStateManager", namespace="ragondin"
-        )
+        self.task_state_manager = ray.get_actor("TaskStateManager", namespace="openrag")
 
         self.default_partition = "_default"
         self.enable_insertion = self.config.vectordb["enable"]
-        self.handle = ray.get_actor("Indexer", namespace="ragondin")
+        self.handle = ray.get_actor("Indexer", namespace="openrag")
+        self.serialize_timeout = self.config.ray.indexer.serialize_timeout
         self.logger.info("Indexer actor initialized.")
 
     async def serialize(
@@ -69,7 +67,6 @@ class Indexer:
         task_id: str,
         path: str,
         metadata: Optional[Dict] = {},
-        timeout: float = 36000,
     ) -> Document:
         import ray
         from ray.exceptions import TaskCancelledError
@@ -80,7 +77,9 @@ class Indexer:
         )
 
         # Wait for it to complete, with timeout
-        ready, _ = await asyncio.to_thread(ray.wait, [future], timeout=timeout)
+        ready, _ = await asyncio.to_thread(
+            ray.wait, [future], timeout=self.serialize_timeout
+        )
 
         if ready:
             try:
@@ -96,7 +95,7 @@ class Indexer:
             self.logger.warning(f"Timeout: cancelling task {task_id} after {timeout}s")
             ray.cancel(future, recursive=True)
             raise TimeoutError(
-                f"Serialization task {task_id} timed out after {timeout} seconds"
+                f"Serialization task {task_id} timed out after {self.serialize_timeout} seconds"
             )
 
     @ray.method(concurrency_group="chunk")
@@ -234,7 +233,7 @@ class Indexer:
         filter: Optional[Dict] = {},
     ) -> List[Document]:
         partition_list = self._check_partition_list(partition)
-        
+
         return await self.vectordb.async_search.remote(
             query=query,
             partition=partition_list,
@@ -262,6 +261,7 @@ class Indexer:
         if isinstance(partition, list) and all(isinstance(p, str) for p in partition):
             return partition
         raise ValueError("Partition must be a string or a list of strings.")
+
 
 @dataclass
 class TaskInfo:

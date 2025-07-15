@@ -11,6 +11,7 @@ from langchain_core.documents.base import Document
 # Global variables
 config = load_config()
 
+
 class SingletonMeta(type):
     _instances = {}
     _lock = threading.Lock()  # Ensures thread safety
@@ -55,18 +56,14 @@ class LLMSemaphore(metaclass=SingletonMeta):
             self._semaphore.release()
 
 
-@ray.remote(
-    concurrency_groups={"release": 100, "acquire": config.ray.semaphore.concurrency}
-)
+@ray.remote(max_concurrency=config.ray.semaphore.concurrency)
 class DistributedSemaphoreActor:
     def __init__(self, max_concurrent_ops: int):
         self.semaphore = asyncio.Semaphore(max_concurrent_ops)
 
-    @ray.method(concurrency_group="acquire")
     async def acquire(self):
         await self.semaphore.acquire()
 
-    @ray.method(concurrency_group="release")
     async def release(self):
         self.semaphore.release()
 
@@ -127,6 +124,7 @@ def format_context(docs: list[Document]) -> str:
         context += "-" * 40 + "\n\n"
 
     return context
+
 
 # llmSemaphore = LLMSemaphore(max_concurrent_ops=config.semaphore.llm_semaphore)
 llmSemaphore = DistributedSemaphore(

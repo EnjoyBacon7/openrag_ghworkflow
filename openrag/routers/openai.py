@@ -58,7 +58,7 @@ async def check_llm_model_availability(request: Request):
 async def list_models(
     app_state=Depends(get_app_state), _: None = Depends(check_llm_model_availability)
 ):
-    partitions = app_state.vectordb.list_partitions.remote()
+    partitions = await app_state.vectordb.list_partitions.remote()
     logger.debug("Listing models", partition_count=len(partitions))
 
     models = []
@@ -85,7 +85,9 @@ async def __get_partition_name(model_name, app_state):
             detail="Model not found. Model should respect this format `openrag-{partition}`",
         )
     partition = model_name.split("openrag-")[1]
-    if partition != "all" and not await app_state.vectordb.partition_exists.remote(partition):
+    if partition != "all" and not await app_state.vectordb.partition_exists.remote(
+        partition
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Partition `{partition}` not found for given model `{model_name}`",
@@ -110,6 +112,7 @@ def __prepare_sources(request: Request, docs: list[Document]):
         )
     return links
 
+
 @router.post(
     "/chat/completions",
     summary="OpenAI compatible chat completion endpoint using RAG",
@@ -125,7 +128,6 @@ def __prepare_sources(request: Request, docs: list[Document]):
     from the vector database before sending to the LLM.
     """,
 )
-
 async def openai_chat_completion(
     request2: Request,
     request: OpenAIChatCompletionRequest = Body(...),
@@ -201,6 +203,7 @@ async def openai_chat_completion(
                 detail="No response from LLM",
             )
 
+
 @router.post(
     "/completions",
     summary="OpenAI compatible completion endpoint using RAG",
@@ -216,7 +219,6 @@ async def openai_chat_completion(
     before sending to the LLM, allowing the completion to include information from your document store.
     """,
 )
-
 async def openai_completion(
     request2: Request,
     request: OpenAICompletionRequest,
@@ -242,7 +244,7 @@ async def openai_completion(
 
     try:
         partition = await __get_partition_name(model_name, app_state)
-        
+
     except Exception as e:
         log.warning(f"Invalid model or partition: {e}")
         raise

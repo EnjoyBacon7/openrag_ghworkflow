@@ -41,6 +41,7 @@ vectordb:
   enable: true
 
 rdb:
+  host: ${oc.env:POSTGRES_HOST, rdb}
   port: ${oc.env:POSTGRES_PORT, 5432}
   user: ${oc.env:POSTGRES_USER, root}
   password: ${oc.env:POSTGRES_PASSWORD, root_password}
@@ -118,6 +119,7 @@ ray:
   max_tasks_per_worker: ${oc.decode:${oc.env:RAY_MAX_TASKS_PER_WORKER, 5}}
   indexer:
     max_task_retries: ${oc.decode:${oc.env:RAY_MAX_TASK_RETRIES, 2}}
+    serialize_timeout: ${oc.decode:${oc.env:INDEXER_SERIALIZE_TIMEOUT, 36000}}
     concurrency_groups:
       default: ${oc.decode:${oc.env:INDEXER_DEFAULT_CONCURRENCY, 1000}}
       update: ${oc.decode:${oc.env:INDEXER_UPDATE_CONCURRENCY, 100}}

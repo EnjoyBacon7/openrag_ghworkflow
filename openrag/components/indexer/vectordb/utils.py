@@ -3,24 +3,23 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 from sqlalchemy import (
+    JSON,
     Column,
     DateTime,
     ForeignKey,
     Integer,
-    JSON,
     String,
     UniqueConstraint,
     create_engine,
-)
-
-from sqlalchemy_utils import (
-    database_exists,
-    create_database,
 )
 from sqlalchemy.orm import (
     declarative_base,
     relationship,
     sessionmaker,
+)
+from sqlalchemy_utils import (
+    create_database,
+    database_exists,
 )
 from utils.logger import get_logger
 
@@ -61,7 +60,6 @@ class File(Base):
     __table_args__ = (
         UniqueConstraint("file_id", "partition_name", name="uix_file_id_partition"),
     )
-
 
     def to_dict(self):
         return self.file_metadata or {}
@@ -119,7 +117,6 @@ class PartitionFileManager:
                 log.warning("No partition found")
                 return {}
 
-
     # def create_partition(self, partition: str):
     #     """Create a new partition if it doesn't exist"""
     #     with self.Session() as session:
@@ -140,7 +137,6 @@ class PartitionFileManager:
     def add_file_to_partition(
         self, file_id: str, partition: str, file_metadata: Optional[Dict] = None
     ):
-
         """Add a file to a partition"""
         log = self.logger.bind(file_id=file_id, partition=partition)
         with self.Session() as session:

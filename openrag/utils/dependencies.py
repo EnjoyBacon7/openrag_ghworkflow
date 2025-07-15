@@ -8,7 +8,7 @@ from components.indexer.vectordb.vectordb import MilvusDB
 from config import load_config
 
 
-def get_or_create_actor(name, cls, namespace="ragondin", **options):
+def get_or_create_actor(name, cls, namespace="openrag", **options):
     try:
         return ray.get_actor(name, namespace=namespace)
     except ValueError:
@@ -41,7 +41,7 @@ def get_indexer():
 
 
 def get_vectordb() -> ABCVectorDB:
-    return get_or_create_actor("Vectordb", MilvusDB, namespace="ragondin")
+    return get_or_create_actor("Vectordb", MilvusDB)
 
 
 vectordb = get_vectordb()

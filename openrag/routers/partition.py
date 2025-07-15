@@ -13,11 +13,13 @@ vectordb = get_vectordb()
 
 @router.get("/")
 async def list_existant_partitions():
+    def pop_files(partition):
+        partition.pop("files")
+        return partition
+
     try:
-        partitions = [
-            {"partition": p.partition, "created_at": int(p.created_at.timestamp())}
-            for p in await vectordb.list_partitions.remote()
-        ]
+        partitions = await vectordb.list_partitions.remote()
+        partitions = list(map(pop_files, partitions))
         logger.debug(
             "Returned list of existing partitions.", partition_count=len(partitions)
         )
@@ -25,11 +27,10 @@ async def list_existant_partitions():
             status_code=status.HTTP_200_OK, content={"partitions": partitions}
         )
     except Exception as e:
-        logger.exception(f"Failed to list partitions")
+        logger.exception("Failed to list partitions")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list partitions: {str(e)}",
-
         )
 
 
@@ -97,6 +98,7 @@ async def list_files(
 
     partition_dict["files"] = list(map(process_file, partition_dict.get("files", [])))
     return JSONResponse(status_code=status.HTTP_200_OK, content=partition_dict)
+
 
 @router.get("/check-file/{partition}/file/{file_id}")
 async def check_file_exists_in_partition(
@@ -221,6 +223,7 @@ async def list_all_chunks(
     ]
     return JSONResponse(status_code=status.HTTP_200_OK, content={"chunks": chunks})
 
+
 # def process_partition(partition):
 #     def add_file_url(file_obj):
 #         file_dict = file_obj.to_dict()
@@ -238,4 +241,3 @@ async def list_all_chunks(
 #         }
 #     partition["files"] = list(map(add_file_url, partition["files"]))
 #     return partition
-
