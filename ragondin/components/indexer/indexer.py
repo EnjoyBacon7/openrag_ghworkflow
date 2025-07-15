@@ -29,6 +29,7 @@ MAX_TASKS_PER_WORKER = config.ray.get("max_tasks_per_worker")
         "search": config.ray.indexer.concurrency_groups["search"],
         "delete": config.ray.indexer.concurrency_groups["delete"],
         "insert": config.ray.indexer.concurrency_groups["insert"],
+        "chunk": config.ray.indexer.concurrency_groups["chunk"],
     },
 )
 class Indexer:
@@ -82,7 +83,7 @@ class Indexer:
 
         if ready:
             try:
-                doc = await asyncio.to_thread(ray.get, ready[0])
+                doc = await ready[0]
                 return doc
             except TaskCancelledError:
                 self.logger.warning(f"Task {task_id} was cancelled")
@@ -97,6 +98,7 @@ class Indexer:
                 f"Serialization task {task_id} timed out after {timeout} seconds"
             )
 
+    @ray.method(concurrency_group="chunk")
     async def chunk(
         self, doc: Document, file_path: str, task_id: str = None
     ) -> List[Document]:
@@ -137,7 +139,7 @@ class Indexer:
 
             # Chunk
             await self.task_state_manager.set_state.remote(task_id, "CHUNKING")
-            chunks = await self.chunk(doc, str(path), task_id)
+            chunks = await self.handle.chunk.remote(doc, str(path), task_id)
 
             if self.enable_insertion and chunks:
                 await self.task_state_manager.set_state.remote(task_id, "INSERTING")
