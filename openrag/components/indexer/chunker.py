@@ -303,7 +303,26 @@ class MarkDownSplitter(BaseChunker):
         # split the text into chunks based on headers
         splits: list[Document] = self.md_header_splitter.split_text(text)
 
+        # regrouping chunks based on token length
+        docs_2_merge = split_list_of_docs(
+            docs=splits,
+            length_func=lambda x: _get_token_length(llm=self.llm, documents=x),
+            token_max=self.chunk_size,
+        )
+
+        splits = []
+        for doc_list in docs_2_merge:
+            collapsed_content = collapse_docs(
+                doc_list,
+                combine_document_func=lambda x: "\n".join(
+                    [d.page_content for d in x]
+                ),  # TODO '\n' or ''
+            )
+            splits.append(collapsed_content)
+
         # add overlap to each chunk
+        md_splits_w_overlap = [None] * len(splits)
+        md_splits_w_overlap[0] = splits[0]  # first chunk remains unchanged
         if self.overlap > 0 and len(splits) > 1:
             for i in range(1, len(splits)):
                 previous_chunk = splits[i - 1]  # current chunk
@@ -316,29 +335,10 @@ class MarkDownSplitter(BaseChunker):
                 overlap = " ".join(overlap)  # convert back to string
 
                 current_chunk.page_content = f"{overlap}\n{current_chunk.page_content}"
-                splits[i] = current_chunk
+                md_splits_w_overlap[i] = current_chunk
 
-        # split large chunks
-        splits = self.recurive_splitter.split_documents(splits)
-
-        # regrouping chunks based on token length
-        s = split_list_of_docs(
-            docs=splits,
-            length_func=lambda x: _get_token_length(llm=self.llm, documents=x),
-            token_max=self.chunk_size,
-        )
-
-        results = []
-        for doc_list in s:
-            collapsed_content = collapse_docs(
-                doc_list,
-                combine_document_func=lambda x: "\n".join(
-                    [d.page_content for d in x]
-                ),  # TODO '\n' or ''
-            )
-            results.append(collapsed_content.page_content)
-
-        return results
+        splits = self.recurive_splitter.split_documents(md_splits_w_overlap)
+        return [s.page_content for s in splits]
 
     async def split_document(self, doc: Document, task_id: str = None):
         metadata = doc.metadata
