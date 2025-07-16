@@ -101,11 +101,6 @@ class EmlLoader(BaseLoader):
                                     body_content = text_content
                             except Exception as e:
                                 print(f"Failed to decode text content: {e}")
-            
-            # Save parsed email as json for debugging
-            json_path = 'file.json'
-            with open(json_path, 'w') as json_file:
-                json.dump(email_data, json_file, default=json_serial, indent=2)
 
             # Extract body content
             content_body = body_content.strip() if body_content else ""
