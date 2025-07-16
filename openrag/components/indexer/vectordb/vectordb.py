@@ -180,7 +180,7 @@ class MilvusDB(ABCVectorDB):
             self.default_collection_name = collection_name
             self.collection_name = collection_name
 
-        self.create_indexes()
+        # self.create_indexes()
 
     @property
     def collection_name(self):
@@ -237,10 +237,17 @@ class MilvusDB(ABCVectorDB):
                 index_name="file_id_idx",  # Optional: custom name
             )
 
+            self.client.create_index(
+                collection_name=self.collection_name,
+                field_name="_id",
+                index_name="_id_idx",  # Optional: custom name
+            )
+
             print("Indexes created successfully")
 
         except Exception as e:
             print(f"Error creating indexes: {e}")
+            raise e
 
     async def get_collections(self) -> list[str]:
         return self.client.list_collections()

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from utils.dependencies import Indexer, get_indexer, vectordb
 from utils.logger import get_logger
+import time
 
 logger = get_logger()
 
@@ -16,10 +17,17 @@ async def list_existant_partitions(request: Request):
         return partition
 
     try:
+        start = time.time()
         partitions = vectordb.list_partitions()
         partitions = list(map(pop_files, partitions))
+        end = time.time()
+
+        duration_ms = (end - start) * 1e3
+
         logger.debug(
-            "Returned list of existing partitions.", partition_count=len(partitions)
+            "Returned list of existing partitions.",
+            partition_count=len(partitions),
+            duration=duration_ms,
         )
         return JSONResponse(
             status_code=status.HTTP_200_OK, content={"partitions": partitions}
@@ -79,17 +87,21 @@ async def list_files(
         }
 
     try:
+        start = time.time()
         partition_dict = vectordb.get_partition(partition=partition)
         if not partition_dict:
             log.warning("Partition not found")
             raise ValueError(f"Partition '{partition}' not found")
 
-        log.debug(
-            "Listed files in partition", file_count=len(partition_dict.get("files", []))
-        )
-
         partition_dict["files"] = list(
             map(process_file, partition_dict.get("files", []))
+        )
+        end = time.time()
+        duration_ms = (end - start) * 1e3
+        log.debug(
+            "Listed files in partition",
+            file_count=len(partition_dict.get("files", [])),
+            duration=duration_ms,
         )
         return JSONResponse(status_code=status.HTTP_200_OK, content=partition_dict)
 
@@ -133,6 +145,7 @@ async def get_file(
     file_id: str,
 ):
     try:
+        start = time.time()
         results = vectordb.get_file_chunks(
             partition=partition, file_id=file_id, include_id=True
         )
@@ -152,6 +165,16 @@ async def get_file(
             {k: v for k, v in results[0].metadata.items() if k != "_id"}
             if results
             else {}
+        )
+
+        end = time.time()
+        duration_ms = (end - start) * 1e3
+        logger.debug(
+            "Fetched file chunks",
+            partition=partition,
+            file_id=file_id,
+            chunk_count=len(documents),
+            duration=duration_ms,
         )
 
         return JSONResponse(
