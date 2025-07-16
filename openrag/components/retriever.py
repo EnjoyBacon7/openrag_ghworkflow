@@ -59,7 +59,7 @@ class BaseRetriever(ABCRetriever):
     async def retrieve(
         self, partition: list[str], query: str, db: ABCVectorDB
     ) -> list[Document]:
-        chunks = await db.async_search(
+        chunks = await db.async_search.remote(
             query=query,
             partition=partition,
             top_k=self.top_k,
@@ -133,7 +133,7 @@ class MultiQueryRetriever(BaseRetriever):
         generated_queries = await self.generate_queries.ainvoke(
             {"query": query, "k_queries": self.k_queries}
         )
-        chunks = await db.async_multy_query_search(
+        chunks = await db.async_multy_query_search.remote(
             queries=generated_queries,
             partition=partition,
             top_k_per_query=self.top_k,
@@ -183,7 +183,7 @@ class HyDeRetriever(BaseRetriever):
         if self.combine:
             queries.append(query)
 
-        return await db.async_multy_query_search(
+        return await db.async_multy_query_search.remote(
             queries=queries,
             partition=partition,
             top_k_per_query=self.top_k,

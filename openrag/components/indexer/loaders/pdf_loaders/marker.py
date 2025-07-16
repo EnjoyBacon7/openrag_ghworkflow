@@ -18,12 +18,10 @@ from ..base import BaseLoader
 logger = get_logger()
 config = load_config()
 
-
 if torch.cuda.is_available():
     MARKER_NUM_GPUS = config.loader.get("marker_num_gpus", 0.01)
 else:  # On CPU
     MARKER_NUM_GPUS = 0
-
 
 @ray.remote(num_gpus=MARKER_NUM_GPUS)
 class MarkerWorker:
@@ -47,8 +45,8 @@ class MarkerWorker:
             "pdftext_workers": 1,
             "disable_multiprocessing": True,
         }
-        if "RAY_ADDRESS" not in os.environ:
-            os.environ["RAY_ADDRESS"] = "auto"
+        os.environ["RAY_ADDRESS"] = "auto"
+
         self.pool = None
         self.init_resources()
 
@@ -118,11 +116,31 @@ class MarkerWorker:
                 torch.cuda.ipc_collect()
 
     async def process_pdf(self, file_path: str):
+        from multiprocessing.context import TimeoutError as MPTimeoutError
+
         config = self.converter_config.copy()
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None, lambda: self.pool.apply(self._process_pdf, (file_path, config))
-        )
+
+        def run_with_timeout():
+            async_result = self.pool.apply_async(self._process_pdf, (file_path, config))
+            try:
+                result = async_result.get(
+                    timeout=self.config.loader.get("marker_timeout")
+                )
+                return result
+            except MPTimeoutError:
+                self.logger.exception(
+                    "MarkerWorker child process timed out", path=file_path
+                )
+                self.setup_mp()
+                raise
+            except Exception:
+                self.logger.exception(
+                    "Error processing with MarkerWorker", path=file_path
+                )
+                raise
+
+        result = await loop.run_in_executor(None, run_with_timeout)
         return result.markdown, result.images
 
     def get_current_pool_size(self):

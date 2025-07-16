@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import ray
+
 from config.config import load_config
 from fastapi import (
     APIRouter,
@@ -17,7 +18,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import JSONResponse
-from utils.dependencies import Indexer, get_indexer, vectordb
+from utils.dependencies import get_indexer, get_task_state_manager, get_vectordb
 from utils.logger import get_logger
 
 # load logger
@@ -26,6 +27,7 @@ logger = get_logger()
 # load config
 config = load_config()
 DATA_DIR = config.paths.data_dir
+
 FORBIDDEN_CHARS_IN_FILE_ID = set("/")  # set('"<>#%{}|\\^`[]')
 LOG_FILE = Path(config.paths.log_dir or "logs") / "app.json"
 
@@ -35,7 +37,9 @@ DICT_MIMETYPES = dict(config.loader["mimetypes"])
 
 
 # Get the TaskStateManager actor
-task_state_manager = ray.get_actor("TaskStateManager", namespace="openrag")
+task_state_manager = get_task_state_manager()
+indexer = get_indexer()
+vectordb = get_vectordb()
 
 # Create an APIRouter instance
 router = APIRouter()
@@ -93,7 +97,6 @@ async def validate_file_format(
         )
     return file
 
-
 def _human_readable_size(size_bytes: int) -> str:
     """Convert bytes to a human-readable format (e.g., '2.4 MB')."""
     for unit in ["B", "KB", "MB", "GB", "TB"]:
@@ -143,11 +146,10 @@ async def add_file(
     file_id: str = Depends(validate_file_id),
     file: UploadFile = Depends(validate_file_format),
     metadata: dict = Depends(validate_metadata),
-    indexer: Indexer = Depends(get_indexer),
 ):
     log = logger.bind(file_id=file_id, partition=partition, filename=file.filename)
 
-    if vectordb.file_exists(file_id, partition):
+    if await vectordb.file_exists.remote(file_id, partition):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"File '{file_id}' already exists in partition {partition}",
@@ -195,11 +197,10 @@ async def add_file(
 
 
 @router.delete("/partition/{partition}/file/{file_id}")
-async def delete_file(
-    partition: str, file_id: str, indexer: Indexer = Depends(get_indexer)
-):
+async def delete_file(partition: str, file_id: str):
     try:
-        deleted = ray.get(indexer.delete_file.remote(file_id, partition))
+        deleted = await indexer.delete_file.remote(file_id, partition)
+
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -221,18 +222,18 @@ async def put_file(
     file_id: str = Depends(validate_file_id),
     file: UploadFile = Depends(validate_file_format),
     metadata: dict = Depends(validate_metadata),
-    indexer: Indexer = Depends(get_indexer),
 ):
     log = logger.bind(file_id=file_id, partition=partition, filename=file.filename)
 
-    if not vectordb.file_exists(file_id, partition):
+    if not await vectordb.file_exists.remote(file_id, partition):
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"File '{file_id}' not found in partition '{partition}'.",
         )
-
+        
     try:
-        ray.get(indexer.delete_file.remote(file_id, partition))
+        await indexer.delete_file.remote(file_id, partition)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -285,9 +286,8 @@ async def patch_file(
     partition: str,
     file_id: str = Depends(validate_file_id),
     metadata: Optional[Any] = Depends(validate_metadata),
-    indexer: Indexer = Depends(get_indexer),
 ):
-    if not vectordb.file_exists(file_id, partition):
+    if not await vectordb.file_exists.remote(file_id, partition):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"File '{file_id}' not found in partition '{partition}'.",
@@ -296,11 +296,11 @@ async def patch_file(
     metadata["file_id"] = file_id
 
     try:
-        ray.get(indexer.update_file_metadata.remote(file_id, metadata, partition))
-    except Exception:
+        await indexer.update_file_metadata.remote(file_id, metadata, partition)
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update metadata.",
+            detail=f"Failed to update metadata : {str(e)}",
         )
 
     return JSONResponse(
@@ -311,10 +311,11 @@ async def patch_file(
 
 @router.get("/task/{task_id}")
 async def get_task_status(
-    request: Request, task_id: str, indexer: Indexer = Depends(get_indexer)
+    request: Request,
+    task_id: str,
 ):
     # fetch task state
-    state = await indexer.get_task_status.remote(task_id)
+    state = await task_state_manager.get_state.remote(task_id)
     if state is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

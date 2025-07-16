@@ -8,6 +8,9 @@ import ray
 from config.config import load_config
 from langchain_core.documents.base import Document
 
+# Global variables
+config = load_config()
+
 
 class SingletonMeta(type):
     _instances = {}
@@ -53,7 +56,7 @@ class LLMSemaphore(metaclass=SingletonMeta):
             self._semaphore.release()
 
 
-@ray.remote(max_concurrency=100000)
+@ray.remote(max_concurrency=config.ray.semaphore.concurrency)
 class DistributedSemaphoreActor:
     def __init__(self, max_concurrent_ops: int):
         self.semaphore = asyncio.Semaphore(max_concurrent_ops)
@@ -122,9 +125,6 @@ def format_context(docs: list[Document]) -> str:
 
     return context
 
-
-# Global variables
-config = load_config()
 
 # llmSemaphore = LLMSemaphore(max_concurrent_ops=config.semaphore.llm_semaphore)
 llmSemaphore = DistributedSemaphore(

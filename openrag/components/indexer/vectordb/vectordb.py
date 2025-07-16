@@ -1,18 +1,16 @@
 import asyncio
+import random
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+import numpy as np
+import ray
 from langchain_core.documents.base import Document
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_milvus import BM25BuiltInFunction, Milvus
-from langchain_qdrant import FastEmbedSparse, QdrantVectorStore, RetrievalMode
+from langchain_openai import OpenAIEmbeddings
 from pymilvus import MilvusClient
-from qdrant_client import QdrantClient, models
 
 from .utils import PartitionFileManager
-import random
-import numpy as np
 
 INDEX_PARAMS = [
     {
@@ -97,6 +95,7 @@ class ABCVectorDB(ABC):
         pass
 
 
+@ray.remote
 class MilvusDB(ABCVectorDB):
     """
     MilvusDB is a concrete class to interact with a Milvus database for vector storage and retrieval.
@@ -124,16 +123,7 @@ class MilvusDB(ABCVectorDB):
         uri: URI of the Milvus server.
     """
 
-    def __init__(
-        self,
-        host,
-        port,
-        embeddings: HuggingFaceBgeEmbeddings | HuggingFaceEmbeddings = None,
-        collection_name: str = None,
-        logger=None,
-        hybrid_mode=True,
-        **kwargs,
-    ):
+    def __init__(self):
         """
         Initialize Milvus.
 
@@ -144,25 +134,32 @@ class MilvusDB(ABCVectorDB):
             embeddings (list): The embeddings.
         """
 
-        self.logger = logger
-        self.embeddings: Union[HuggingFaceBgeEmbeddings, HuggingFaceEmbeddings] = (
-            embeddings
+        from config import load_config
+        from utils.logger import get_logger
+
+        self.config = load_config()
+        self.logger = get_logger()
+
+        self.embeddings = OpenAIEmbeddings(
+            model=self.config.embedder.get("model_name"),
+            base_url=self.config.embedder.get("base_url"),
+            api_key=self.config.embedder.get("api_key"),
         )
-        self.port = port
-        self.host = host
-        self.uri = f"http://{host}:{port}"
+        self.port = self.config.vectordb.get("port")
+        self.host = self.config.vectordb.get("host")
+        self.uri = f"http://{self.host}:{self.port}"
         self.client = MilvusClient(uri=self.uri)
         self.sparse_embeddings = None
-        if hybrid_mode:
+        self.hybrid_mode = self.config.vectordb.get("hybrid_mode", True)
+        if self.hybrid_mode:
             self.sparse_embeddings = BM25BuiltInFunction(enable_match=True)
 
         index_params = None
-        if hybrid_mode:
+        if self.hybrid_mode:
             index_params = INDEX_PARAMS
         else:
             index_params = {"metric_type": "COSINE", "index_type": "FLAT"}
 
-        self.hybrid_mode = hybrid_mode
         self.index_params = index_params
         # Initialize collection-related attributes
         self.default_collection_name = None
@@ -170,12 +167,13 @@ class MilvusDB(ABCVectorDB):
         self.vector_store = None
         self.partition_file_manager: PartitionFileManager = None
         self.default_partition = "_default"
-        self.rdb_host = kwargs.get("rdb_host", None)
-        self.rdb_port = kwargs.get("rdb_port", None)
-        self.rdb_user = kwargs.get("rdb_user", None)
-        self.rdb_password = kwargs.get("rdb_password", None)
+        self.rdb_host = self.config.rdb.host
+        self.rdb_port = self.config.rdb.port
+        self.rdb_user = self.config.rdb.user
+        self.rdb_password = self.config.rdb.password
 
         # Set the initial collection name (if provided)
+        collection_name = self.config.vectordb.collection_name
         if collection_name:
             self.default_collection_name = collection_name
             self.collection_name = collection_name
@@ -658,7 +656,7 @@ class MilvusDB(ABCVectorDB):
             def prepare_metadata(res: dict):
                 metadata = {}
                 for k, v in res.items():
-                    if not k in excluded_keys:
+                    if k not in excluded_keys:
                         if k == "vector":
                             v = str(np.array(v).flatten().tolist())
                         metadata[k] = v
