@@ -150,6 +150,11 @@ pip install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
+To use the PostgreSQL database server, we must install the Psycopg2 package, which requires libpq-dev to provide the necessary components for building Psycopg2.
+```bash
+sudo apt-get install libpq-dev python3-dev
+```
+
 ```bash
 # Create a new environment with all dependencies
 cd openrag/
