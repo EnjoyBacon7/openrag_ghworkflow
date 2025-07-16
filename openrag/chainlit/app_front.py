@@ -77,7 +77,7 @@ async def chat_profile():
         models = output.data
         chat_profiles = []
         for i, m in enumerate(models, start=1):
-            partition = m.id.split("openrag-")[1]
+            partition = m.id.split("ragondin-")[1]
             description_template = "You are interacting with the **{name}** LLM.\n" + (
                 "The LLM's answers will be grounded on **all** partitions."
                 if "all" in m.id

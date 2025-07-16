@@ -58,7 +58,13 @@ class File(Base):
     )
 
     def to_dict(self):
-        return self.file_metadata or {}
+        d = {
+            'file_id': self.file_id,
+            'partition': self.partition_name,
+            **(self.file_metadata)
+
+        }
+        return d
 
     def __repr__(self):
         return f"<File(id={self.id}, file_id='{self.file_id}', partition='{self.partition}')>"

@@ -89,7 +89,7 @@ async def list_files(
         return {
             "link": str(
                 request.url_for(
-                    "get_file", partition=partition, file_id=file_dict["file_id"]
+                    "get_file", partition=partition, file_id=file_dict.get("file_id")
                 )
             ),
             **file_dict,
