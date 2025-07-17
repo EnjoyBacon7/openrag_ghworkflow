@@ -1,0 +1,12 @@
+# Ansible requirements for OpenRAG deployment
+
+# Install with: pip install -r requirements.txt
+
+ansible>=8.0.0
+ansible-core>=2.15.0
+
+# Optional but recommended for better inventory management
+ansible-inventory-grapher
+
+# For better output formatting
+ansible-runner

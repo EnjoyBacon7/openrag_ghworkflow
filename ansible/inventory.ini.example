@@ -1,0 +1,12 @@
+[openrag_servers]
+# Replace with your server IPs or hostnames
+localhost ansible_connection=local
+
+# Example for remote servers:
+# server1 ansible_host=192.168.1.100 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+# server2 ansible_host=192.168.1.101 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+[openrag_servers:vars]
+# Common variables for all servers
+ansible_python_interpreter=/usr/bin/python3
+# ansible_ssh_common_args='-o StrictHostKeyChecking=no'

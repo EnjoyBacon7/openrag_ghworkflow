@@ -1,0 +1,256 @@
+---
+- name: Setup OpenRAG Environment
+  hosts: all
+  become: yes
+  vars:
+    docker_compose_version: "2.21.0"
+    nvidia_driver_version: "535"
+    project_user: "{{ ansible_user | default('ubuntu') }}"
+    project_path: "/home/{{ project_user }}/openrag"
+    
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required system packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - software-properties-common
+          - wget
+          - git
+          - python3
+          - python3-pip
+          - unzip
+        state: present
+
+    # NVIDIA Driver Installation
+    - name: Check if NVIDIA GPU is present
+      shell: lspci | grep -i nvidia
+      register: nvidia_check
+      failed_when: false
+      changed_when: false
+
+    - name: Add NVIDIA package repository
+      block:
+        - name: Download NVIDIA repository key
+          get_url:
+            url: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb
+            dest: /tmp/cuda-keyring_1.0-1_all.deb
+
+        - name: Install NVIDIA repository key
+          apt:
+            deb: /tmp/cuda-keyring_1.0-1_all.deb
+
+        - name: Update apt cache after adding NVIDIA repo
+          apt:
+            update_cache: yes
+      when: nvidia_check.rc == 0
+
+    - name: Install NVIDIA drivers and CUDA toolkit
+      apt:
+        name:
+          - nvidia-driver-{{ nvidia_driver_version }}
+          - nvidia-dkms-{{ nvidia_driver_version }}
+          - cuda-toolkit
+        state: present
+      when: nvidia_check.rc == 0
+
+    # Docker Installation
+    - name: Remove old Docker versions
+      apt:
+        name:
+          - docker
+          - docker-engine
+          - docker.io
+          - containerd
+          - runc
+        state: absent
+
+    - name: Add Docker's official GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add user to docker group
+      user:
+        name: "{{ project_user }}"
+        groups: docker
+        append: yes
+
+    # NVIDIA Container Toolkit Installation
+    - name: Add NVIDIA Container Toolkit repository
+      block:
+        - name: Add NVIDIA Container Toolkit GPG key
+          apt_key:
+            url: https://nvidia.github.io/libnvidia-container/gpgkey
+            state: present
+
+        - name: Add NVIDIA Container Toolkit repository
+          apt_repository:
+            repo: "deb https://nvidia.github.io/libnvidia-container/stable/ubuntu18.04/amd64 /"
+            state: present
+
+        - name: Update apt cache
+          apt:
+            update_cache: yes
+
+        - name: Install NVIDIA Container Toolkit
+          apt:
+            name: nvidia-container-toolkit
+            state: present
+
+        - name: Restart Docker service
+          systemd:
+            name: docker
+            state: restarted
+      when: nvidia_check.rc == 0
+
+    # Project Setup
+    - name: Create project directory
+      file:
+        path: "{{ project_path }}"
+        state: directory
+        owner: "{{ project_user }}"
+        group: "{{ project_user }}"
+        mode: '0755'
+
+    - name: Clone or update OpenRAG repository
+      git:
+        repo: https://github.com/linagora/openrag.git
+        dest: "{{ project_path }}"
+        force: yes
+      become_user: "{{ project_user }}"
+
+    - name: Check if .env file exists
+      stat:
+        path: "{{ project_path }}/.env"
+      register: env_file
+
+    - name: Copy .env.example to .env if not exists
+      copy:
+        src: "{{ project_path }}/.env.example"
+        dest: "{{ project_path }}/.env"
+        remote_src: yes
+        owner: "{{ project_user }}"
+        group: "{{ project_user }}"
+        mode: '0644'
+      when: not env_file.stat.exists
+      become_user: "{{ project_user }}"
+
+    - name: Create required directories
+      file:
+        path: "{{ project_path }}/{{ item }}"
+        state: directory
+        owner: "{{ project_user }}"
+        group: "{{ project_user }}"
+        mode: '0755'
+      loop:
+        - data
+        - db
+        - logs
+        - .hydra_config
+        - model_weights
+        - vdb/volumes
+      become_user: "{{ project_user }}"
+
+    # Python Environment Setup
+    - name: Install uv (Python package manager)
+      shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      become_user: "{{ project_user }}"
+      args:
+        creates: "/home/{{ project_user }}/.cargo/bin/uv"
+
+    - name: Add uv to PATH
+      lineinfile:
+        path: "/home/{{ project_user }}/.bashrc"
+        line: 'export PATH="$HOME/.cargo/bin:$PATH"'
+        create: yes
+      become_user: "{{ project_user }}"
+
+    # Docker Compose Setup and Run
+    - name: Pull Docker images
+      shell: |
+        cd {{ project_path }}
+        /home/{{ project_user }}/.cargo/bin/uv run docker compose pull
+      become_user: "{{ project_user }}"
+      environment:
+        PATH: "/home/{{ project_user }}/.cargo/bin:{{ ansible_env.PATH }}"
+
+    - name: Build Docker images
+      shell: |
+        cd {{ project_path }}
+        docker compose build
+      become_user: "{{ project_user }}"
+
+    - name: Start Docker Compose services
+      shell: |
+        cd {{ project_path }}
+        docker compose up -d
+      become_user: "{{ project_user }}"
+
+    - name: Wait for services to be ready
+      wait_for:
+        port: "{{ item }}"
+        host: localhost
+        delay: 30
+        timeout: 300
+      loop:
+        - 8080  # OpenRAG API
+        - 19530 # Milvus
+      ignore_errors: yes
+
+    # Verification
+    - name: Check Docker containers status
+      shell: docker ps
+      register: docker_status
+      become_user: "{{ project_user }}"
+
+    - name: Display running containers
+      debug:
+        var: docker_status.stdout_lines
+
+    - name: Check if NVIDIA runtime is available
+      shell: docker run --rm --gpus all nvidia/cuda:11.0-base nvidia-smi
+      register: nvidia_test
+      become_user: "{{ project_user }}"
+      when: nvidia_check.rc == 0
+      ignore_errors: yes
+
+    - name: Display NVIDIA test result
+      debug:
+        var: nvidia_test.stdout_lines
+      when: nvidia_check.rc == 0 and nvidia_test is defined
+
+  handlers:
+    - name: reboot system
+      reboot:
+        reboot_timeout: 300
+      when: nvidia_check.rc == 0
