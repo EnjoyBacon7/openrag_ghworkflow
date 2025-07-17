@@ -109,7 +109,9 @@ def _human_readable_size(size_bytes: int) -> str:
 @router.get("/supported/types")
 async def get_supported_types():
     list_extensions = list(ACCEPTED_FILE_FORMATS)
-    return JSONResponse(content={"supported_types": list_extensions})
+    list_mimetypes = list(DICT_MIMETYPES)
+    resp = {"extensions": list_extensions, "mimetypes": list_mimetypes}
+    return JSONResponse(content=resp)
 
 
 @router.post(
