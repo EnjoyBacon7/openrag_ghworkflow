@@ -1,5 +1,5 @@
 defaults:
   - base
 name: semantic_splitter
-min_chunk_size: 1000
+min_chunk_size: 200
 breakpoint_threshold_amount: 95

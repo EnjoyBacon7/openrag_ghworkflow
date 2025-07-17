@@ -10,9 +10,9 @@ import ray
 import torch
 from config import load_config
 from langchain_core.documents.base import Document
-from langchain_openai import OpenAIEmbeddings
 
 from .chunker import BaseChunker, ChunkerFactory
+# from .chunkers import BaseChunker, ChunkerFactory
 
 config = load_config()
 save_uploaded_files = os.environ.get("SAVE_UPLOADED_FILES", "true").lower() == "true"
@@ -39,18 +39,10 @@ class Indexer:
         self.config = load_config()
         self.logger = get_logger()
 
-        self.embedder = OpenAIEmbeddings(
-            model=self.config.embedder.get("model_name"),
-            base_url=self.config.embedder.get("base_url"),
-            api_key=self.config.embedder.get("api_key"),
-        )
-
         self.serializer_queue = ray.get_actor("SerializerQueue", namespace="openrag")
 
         # Initialize chunker
-        self.chunker: BaseChunker = ChunkerFactory.create_chunker(
-            self.config, embedder=self.embedder
-        )
+        self.chunker: BaseChunker = ChunkerFactory.create_chunker(self.config)
 
         self.vectordb = ray.get_actor("Vectordb", namespace="openrag")
 
@@ -92,7 +84,9 @@ class Indexer:
                 self.logger.exception(f"Task {task_id} failed with error: {e}")
                 raise
         else:
-            self.logger.warning(f"Timeout: cancelling task {task_id} after {timeout}s")
+            self.logger.warning(
+                f"Timeout: cancelling task {task_id} after {self.serialize_timeout}s"
+            )
             ray.cancel(future, recursive=True)
             raise TimeoutError(
                 f"Serialization task {task_id} timed out after {self.serialize_timeout} seconds"
