@@ -92,7 +92,9 @@ class Indexer:
                 self.logger.exception(f"Task {task_id} failed with error: {e}")
                 raise
         else:
-            self.logger.warning(f"Timeout: cancelling task {task_id} after {timeout}s")
+            self.logger.warning(
+                f"Timeout: cancelling task {task_id} after {self.serialize_timeout}s"
+            )
             ray.cancel(future, recursive=True)
             raise TimeoutError(
                 f"Serialization task {task_id} timed out after {self.serialize_timeout} seconds"
@@ -116,8 +118,6 @@ class Indexer:
         log = self.logger.bind(file_id=file_id, partition=partition, task_id=task_id)
         log.info("Queued file for indexing.")
         try:
-            await self.task_state_manager.set_state.remote(task_id, "QUEUED")
-
             # Set task details
             user_metadata = {
                 k: v for k, v in metadata.items() if k not in {"file_id", "source"}
