@@ -64,10 +64,7 @@ class DocSerializer:
         if mimetype is None:
             loader_cls = self.loader_classes.get(file_ext)
         else:
-            loader_cls = self.loader_classes.get(
-                DICT_MIMETYPES.get(mimetype)
-            )
-
+            loader_cls = self.loader_classes.get(DICT_MIMETYPES.get(mimetype))
 
         if loader_cls is None:
             log.warning(f"No loader available for {p.name}")

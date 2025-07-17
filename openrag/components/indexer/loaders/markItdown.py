@@ -39,7 +39,10 @@ class MarkItDownLoader(BaseLoader):
         return doc
 
     async def get_captions(self, images):
-        tasks = [self.get_image_description(image=img) for img, image_ext in images]
+        tasks = [
+            self.get_image_description(image_data_data_data=img)
+            for img, image_ext in images
+        ]
         return await tqdm.gather(*tasks, desc="Generating captions")
 
     def get_images_from_zip(self, input_file):

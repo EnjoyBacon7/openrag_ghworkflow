@@ -31,7 +31,7 @@ class DoclingConverter(metaclass=SingletonMeta):
             do_table_structure=True,
             generate_picture_images=True,
             images_scale=img_scale,
-            # generate_table_images=True,
+            generate_table_images=True,
             # generate_page_images=True
         )
         pipeline_options.table_structure_options = TableStructureOptions(

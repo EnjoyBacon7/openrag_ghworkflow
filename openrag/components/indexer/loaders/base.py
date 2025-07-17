@@ -5,11 +5,11 @@ from abc import ABC, abstractmethod
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, Optional, Union
-
 from langchain_core.documents.base import Document
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from utils.logger import get_logger
+from PIL import Image
 
 from ...utils import load_config, load_sys_template, vlmSemaphore
 
@@ -52,44 +52,108 @@ class BaseLoader(ABC):
             f.write(doc.page_content)
         logger.debug(f"Document saved to {path}")
 
+    def _pil_image_to_base64(self, image: Image.Image) -> str:
+        """Convert PIL Image to base64 string."""
+        buffered = BytesIO()
+        # Determine format based on image mode or use PNG as default
+        format_type = "PNG"
+        if hasattr(image, "format") and image.format:
+            format_type = image.format
+
+        image.save(buffered, format=format_type)
+        return base64.b64encode(buffered.getvalue()).decode()
+
+    def _is_http_url(self, data: str) -> bool:
+        """Check if string is an HTTP/HTTPS URL."""
+        return isinstance(data, str) and data.startswith(("http://", "https://"))
+
+    def _is_data_uri(self, data: str) -> bool:
+        """Check if string is a data URI."""
+        return isinstance(data, str) and data.startswith("data:image/")
+
     async def get_image_description(
-        self, image, semaphore: asyncio.Semaphore = vlmSemaphore
-    ):
+        self,
+        image_data: Union[Image.Image, str],
+        semaphore: asyncio.Semaphore = vlmSemaphore,
+    ) -> str:
         """
-        Creates a description for an image using the LLM model defined in the constructor
+        Creates a description for an image using the LLM model.
+
         Args:
-            image (PIL.Image): Image to describe
-            semaphore (asyncio.Semaphore): Semaphore to control access to the LLM model
-            Returns:
-            str: Description of the image
+            image_data: Can be one of:
+                - PIL.Image object
+                - str: HTTP/HTTPS URL
+                - str: data URI (data:image/...;base64,...)
+            semaphore: Semaphore to control access to the LLM model
+
+        Returns:
+            str: Description of the image wrapped in XML tags
         """
         async with semaphore:
-            width, height = image.size
-
-            buffered = BytesIO()
-            image.save(buffered, format="PNG")
-            img_b64 = base64.b64encode(buffered.getvalue()).decode()
-            image_description = ""
-
-            message = HumanMessage(
-                content=[
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/png;base64,{img_b64}"  # f"{picture.image.uri.path}" #
-                        },
-                    },
-                    {"type": "text", "text": IMAGE_DESCRIPTION_PROMPT},
-                ]
-            )
             try:
-                if width > self.min_width_pixels and height > self.min_height_pixels:
-                    response = await self.vlm_endpoint.ainvoke([message])
-                    image_description = response.content
+                # Determine the type of image data and create appropriate message content
+                if isinstance(image_data, Image.Image):
+                    # Handle PIL Image
+                    width, height = image_data.size
 
-            except Exception:
-                logger.exception("Error while generating image description")
+                    # Check minimum dimensions
+                    if (
+                        width <= self.min_width_pixels
+                        or height <= self.min_height_pixels
+                    ):
+                        logger.debug(
+                            f"Image too small: {width}x{height}, skipping description"
+                        )
+                        return f"""\n<image_description>\nImage too small ({width}x{height})\n</image_description>\n"""
 
-            # Convert image path to markdown format and combine with description
-            desc = f"""\n<image_description>\n{image_description}\n</image_description>\n"""
-            return desc
+                    # Convert PIL Image to base64
+                    img_b64 = self._pil_image_to_base64(image_data)
+                    image_url = f"data:image/png;base64,{img_b64}"
+
+                elif self._is_http_url(image_data):
+                    # Handle HTTP/HTTPS URL
+                    image_url = image_data
+                    logger.debug(f"Processing HTTP URL: {image_data}")
+
+                elif self._is_data_uri(image_data):
+                    # Handle data URI - use as-is
+                    image_url = image_data
+                    logger.debug(f"Processing data URI: {image_data[:50]}...")
+
+                else:
+                    # Handle raw base64 string (assume it's base64 encoded image)
+                    if isinstance(image_data, str):
+                        try:
+                            # Try to decode to verify it's valid base64
+                            base64.b64decode(image_data)
+                            image_url = f"data:image/png;base64,{image_data}"
+                            logger.debug("Processing raw base64 string")
+                        except Exception:
+                            logger.error(
+                                f"Invalid image data type or format: {type(image_data)}"
+                            )
+                            return f"""\n<image_description>\nInvalid image data format\n</image_description>\n"""
+                    else:
+                        logger.error(f"Unsupported image data type: {type(image_data)}")
+                        return f"""\n<image_description>\nUnsupported image data type\n</image_description>\n"""
+
+                # Create message for LLM
+                message = HumanMessage(
+                    content=[
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": image_url},
+                        },
+                        {"type": "text", "text": IMAGE_DESCRIPTION_PROMPT},
+                    ]
+                )
+
+                # Get description from LLM
+                response = await self.vlm_endpoint.ainvoke([message])
+                image_description = response.content
+
+            except Exception as e:
+                logger.exception(f"Error while generating image description: {str(e)}")
+                image_description = ""
+
+            return f"""\n<image_description>\n{image_description}\n</image_description>\n"""

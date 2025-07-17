@@ -23,10 +23,7 @@ class PyMuPDFLoader(BaseLoader):
         for page_num, segment in enumerate(pages, start=1):
             s = segment.page_content.strip() + f"\n[PAGE_{page_num}]\n"
 
-        doc = Document(
-            page_content=s,
-            metadata=metadata,
-        )
+        doc = Document(page_content=s, metadata=metadata)
         if save_markdown:
             self.save_document(doc, str(file_path))
         return doc
