@@ -57,12 +57,6 @@ check_ansible() {
 check_prerequisites() {
     print_header "Checking prerequisites..."
     check_ansible
-    
-    if [ ! -f "inventory.ini" ] && [ ! -f "inventory-gpu-cpu.ini" ]; then
-        print_error "No inventory file found. Please fetch inventory files from the OpenRAG repository. (https://github.com/linagora/openRAG)"
-        exit 1
-    fi
-    
     print_status "Prerequisites check completed"
 }
 # -----------------------------------------------------------------------
@@ -72,31 +66,78 @@ check_prerequisites() {
 deploy_local() {
     print_header "Deploying OpenRAG to local machine..."
     
-    if [ ! -f "inventory.ini" ]; then
-        print_warning "inventory.ini not found. Creating default local inventory..."
-        cat > inventory.ini << EOF
-[openrag_servers]
+    # Get deployment type from user
+    echo ""
+    echo "Select deployment type:"
+    echo "  1) CPU-only deployment"
+    echo "  2) GPU-enabled deployment"
+    echo ""
+    read -p "Enter your choice (1 or 2): " choice
+    
+    if [[ "$choice" != "1" && "$choice" != "2" ]]; then
+        print_error "Invalid choice. Please select 1 or 2."
+        exit 1
+    fi
+    
+    if [ -f "inventory.ini" ]; then
+        print_warning "Existing inventory.ini will be overwritten."
+        read -p "Continue? (y/n): " confirm
+        if [[ "$confirm" != [Yy] ]]; then
+            print_status "Deployment cancelled."
+            exit 1
+        fi
+    fi
+    
+    if [ "$choice" == "1" ]; then
+        print_status "Setting up CPU-only deployment..."
+        create_local_cpu_inventory
+    else
+        print_status "Setting up GPU-enabled deployment..."
+        create_local_gpu_inventory
+    fi
+    
+    # Deploy with ansible
+    print_status "Starting deployment..."
+    ansible-playbook -i inventory.ini playbook.yml --ask-become-pass
+}
+
+# Helper function to create CPU inventory
+create_local_cpu_inventory() {
+    cat > inventory.ini << 'EOF'
+[gpu_servers]
+
+[cpu_servers]
 localhost ansible_connection=local
 
 [openrag_servers:vars]
 ansible_python_interpreter=/usr/bin/python3
 EOF
-    fi
-    
-    ansible-playbook -i inventory.ini playbook.yml --ask-become-pass
+}
+
+# Helper function to create GPU inventory
+create_local_gpu_inventory() {
+    cat > inventory.ini << 'EOF'
+[gpu_servers]
+localhost ansible_connection=local
+
+[cpu_servers]
+
+[openrag_servers:vars]
+ansible_python_interpreter=/usr/bin/python3
+EOF
 }
 # -----------------------------------------------------------------------
 
 # -------------------------- Advanced deployment ------------------------
-deploy_advanced() {
+deploy_remote() {
     print_header "Deploying OpenRAG with GPU/CPU server distinction..."
     
-    if [ ! -f "inventory-gpu-cpu.ini" ]; then
-        print_error "inventory-gpu-cpu.ini not found. Please create it first."
+    if [ ! -f "inventory.ini" ]; then
+        print_error "inventory.ini not found. Please create it first."
         exit 1
     fi
     
-    ansible-playbook -i inventory-gpu-cpu.ini playbook-gpu-cpu.yml --ask-become-pass
+    ansible-playbook -i inventory.ini playbook.yml --ask-become-pass
 }
 # -----------------------------------------------------------------------
 
@@ -104,12 +145,7 @@ deploy_advanced() {
 check_status() {
     print_header "Checking OpenRAG deployment status..."
     
-    # Check if using GPU/CPU inventory
-    if [ -f "inventory-gpu-cpu.ini" ]; then
-        INVENTORY="inventory-gpu-cpu.ini"
-    else
-        INVENTORY="inventory.ini"
-    fi
+    INVENTORY="inventory.ini"
     
     ansible all -i "$INVENTORY" -m shell -a "docker ps --format 'table {{'{{'}}.Names{{'}}'}}\t{{'{{'}}.Status{{'}}'}}'"
 }
@@ -117,12 +153,7 @@ check_status() {
 stop_services() {
     print_header "Stopping OpenRAG services..."
     
-    # Check if using GPU/CPU inventory
-    if [ -f "inventory-gpu-cpu.ini" ]; then
-        INVENTORY="inventory-gpu-cpu.ini"
-    else
-        INVENTORY="inventory.ini"
-    fi
+    INVENTORY="inventory.ini"
     
     # Check if OpenRAG directory exists before trying to stop services
     ansible all -i "$INVENTORY" -m shell -a "if [ -d /home/\$(whoami)/openrag ]; then cd /home/\$(whoami)/openrag && docker compose down; else echo 'OpenRAG directory not found. No services to stop.'; fi" --become-user="\$(whoami)"
@@ -131,12 +162,7 @@ stop_services() {
 start_services() {
     print_header "Starting OpenRAG services..."
     
-    # Check if using GPU/CPU inventory
-    if [ -f "inventory-gpu-cpu.ini" ]; then
-        INVENTORY="inventory-gpu-cpu.ini"
-    else
-        INVENTORY="inventory.ini"
-    fi
+    INVENTORY="inventory.ini"
     
     # Check if OpenRAG directory exists before trying to start services
     ansible all -i "$INVENTORY" -m shell -a "if [ -d /home/\$(whoami)/openrag ]; then cd /home/\$(whoami)/openrag && docker compose up -d; else echo 'OpenRAG directory not found. Please deploy OpenRAG first.'; fi" --become-user="\$(whoami)"
@@ -145,12 +171,7 @@ start_services() {
 show_logs() {
     print_header "Showing OpenRAG logs..."
     
-    # Check if using GPU/CPU inventory
-    if [ -f "inventory-gpu-cpu.ini" ]; then
-        INVENTORY="inventory-gpu-cpu.ini"
-    else
-        INVENTORY="inventory.ini"
-    fi
+    INVENTORY="inventory.ini"
     
     SERVICE=${1:-openrag}
     # Check if OpenRAG directory exists before trying to show logs
@@ -160,14 +181,8 @@ show_logs() {
 update_deployment() {
     print_header "Updating OpenRAG deployment..."
     
-    # Check if using GPU/CPU inventory
-    if [ -f "inventory-gpu-cpu.ini" ]; then
-        INVENTORY="inventory-gpu-cpu.ini"
-        PLAYBOOK="playbook-gpu-cpu.yml"
-    else
-        INVENTORY="inventory.ini"
-        PLAYBOOK="playbook.yml"
-    fi
+    INVENTORY="inventory.ini"
+    PLAYBOOK="playbook.yml"
     
     # Check if OpenRAG directory exists before trying to update
     ansible all -i "$INVENTORY" -m shell -a "if [ -d /home/\$(whoami)/openrag ]; then cd /home/\$(whoami)/openrag && git pull origin main && docker compose down && docker compose build && docker compose up -d; else echo 'OpenRAG directory not found. Please deploy OpenRAG first using option 1 or 2.'; fi" --become-user="\$(whoami)"
@@ -186,12 +201,7 @@ remove_all() {
         return
     fi
     
-    # Check if using GPU/CPU inventory
-    if [ -f "inventory-gpu-cpu.ini" ]; then
-        INVENTORY="inventory-gpu-cpu.ini"
-    else
-        INVENTORY="inventory.ini"
-    fi
+    INVENTORY="inventory.ini"
     
     print_status "Starting complete removal process..."
     
@@ -325,8 +335,8 @@ remove_all() {
 # ------------------------------ Main Menu ------------------------------
 show_menu() {
     print_header "OpenRAG Ansible Deployment Tool"
-    echo "1) Deploy to local machine (simple)"
-    echo "2) Deploy with GPU/CPU distinction (advanced)"
+    echo "1) Deploy to local machine"
+    echo "2) Deploy remotely"
     echo "3) Check deployment status"
     echo "4) Stop services"
     echo "5) Start services"
@@ -350,7 +360,7 @@ main() {
                     deploy_local
                     ;;
                 2)
-                    deploy_advanced
+                    deploy_remote
                     ;;
                 3)
                     check_status
@@ -388,8 +398,8 @@ main() {
             "deploy-local")
                 deploy_local
                 ;;
-            "deploy-advanced")
-                deploy_advanced
+            "deploy-remote")
+                deploy_remote
                 ;;
             "status")
                 check_status
@@ -410,7 +420,7 @@ main() {
                 remove_all
                 ;;
             *)
-                echo "Usage: $0 [deploy-local|deploy-advanced|status|stop|start|logs [service]|update|remove-all]"
+                echo "Usage: $0 [deploy-local|deploy-remote|status|stop|start|logs [service]|update|remove-all]"
                 exit 1
                 ;;
         esac

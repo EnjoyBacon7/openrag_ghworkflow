@@ -2,6 +2,8 @@
 
 This directory contains Ansible playbooks and scripts to automatically set up the OpenRAG environment on one or more servers.
 
+These scripts are designed for installation on fresh production servers.
+
 ## Features
 
 - **Automated Docker installation** 
@@ -13,53 +15,65 @@ This directory contains Ansible playbooks and scripts to automatically set up th
 
 ### 1. Prerequisites
 
-- Ansible installed on your control machine
+- Ansible installed on your control machine (automatically installed by deploy.sh if missing)
 - SSH access to target servers (if deploying remotely)
 - Ubuntu 20.04+ or similar Linux distribution on target servers
+- For remote deployment: `inventory.ini.example` file from the OpenRAG repository
 
 ### 2. Local Deployment (Easiest)
 
 ```bash
 cd ansible/
 ./deploy.sh
-# Choose option 1: "Deploy to local machine (simple)"
+# Choose option 1: "Deploy to local machine"
+# Select CPU-only or GPU-enabled deployment when prompted
 ```
+
+The local deployment will:
+- Prompt you to choose between CPU-only or GPU-enabled deployment
+- Handle all necessary configurations and installs automatically
+- Start all services
 
 ### 3. Remote Deployment
 
-1. **Edit the inventory file:**
+1. **Create the inventory file (on the control machine):**
    ```bash
-   # For simple deployment
-   nano inventory.ini
+   # Rename the example inventory file
+   cp inventory.ini.example inventory.ini
    
-   # For GPU/CPU distinction
-   nano inventory-gpu-cpu.ini
+   # Edit the inventory file
+   nano inventory.ini
    ```
 
-2. **Add your servers:**
+2. **Configure your servers:**
    ```ini
-   [openrag_servers]
-   server1 ansible_host=192.168.1.100 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
-   server2 ansible_host=192.168.1.101 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+   [gpu_servers]
+   gpu-server1 ansible_host=192.168.1.100 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+   gpu-server2 ansible_host=192.168.1.101 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+   [cpu_servers]
+   cpu-server1 ansible_host=192.168.1.102 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+   [all:vars]
+   ansible_python_interpreter=/usr/bin/python3
    ```
 
 3. **Run the deployment:**
    ```bash
    ./deploy.sh
-   # Choose option 2: "Deploy with GPU/CPU distinction (advanced)"
+   # Choose option 2: "Deploy remotely"
    ```
 
 ## Files Overview
 
 ### Playbooks
 
-- **`playbook.yml`** - Simple deployment for all servers (auto-detects GPU)
-- **`playbook-gpu-cpu.yml`** - Advanced deployment with GPU/CPU server distinction
+- **`playbook.yml`** - Main deployment playbook with separate GPU-enabled and CPU-only server configurations
 
 ### Inventory Files
 
-- **`inventory.ini`** - Simple inventory for basic deployment
-- **`inventory-gpu-cpu.ini`** - Advanced inventory with GPU/CPU groups
+- **`inventory.ini.example`** - Example inventory template for remote deployment
+- **`inventory.ini`** - Generated automatically for local deployment or manually created for remote deployment
 
 ### Configuration
 
@@ -67,36 +81,16 @@ cd ansible/
 
 ### Scripts
 
-- **`deploy.sh`** - Interactive deployment and management script
-
-## Deployment Options
-
-### Option 1: Simple Deployment (`playbook.yml`)
-
-- Automatically detects NVIDIA GPUs
-- Installs NVIDIA drivers if GPU detected
-- Single playbook for all server types
-- Good for small deployments
-
-### Option 2: Advanced Deployment (`playbook-gpu-cpu.yml`)
-
-- Separate groups for GPU and CPU servers
-- Optimized configurations for each type
-- Better for larger, mixed environments
-- Allows different compose profiles
+- **`deploy.sh`** - Interactive deployment and management
 
 ## Manual Deployment
 
 If you prefer to run Ansible commands directly:
 
-### Simple Deployment
+### Local/Remote Deployment
 ```bash
+# Create inventory first
 ansible-playbook -i inventory.ini playbook.yml --ask-become-pass
-```
-
-### Advanced Deployment
-```bash
-ansible-playbook -i inventory-gpu-cpu.ini playbook-gpu-cpu.yml --ask-become-pass
 ```
 
 ### Check Status
@@ -108,48 +102,53 @@ ansible all -i inventory.ini -m shell -a "docker ps" --become
 
 The deployment script provides several management options:
 
-### Check Status
+### Interactive Mode
 ```bash
+./deploy.sh
+```
+
+### Command Line Mode
+```bash
+# Deploy locally
+./deploy.sh deploy-local
+
+# Deploy remotely  
+./deploy.sh deploy-remote
+
+# Check status
 ./deploy.sh status
-```
 
-### Stop Services
-```bash
+# Stop services
 ./deploy.sh stop
-```
 
-### Start Services
-```bash
+# Start services
 ./deploy.sh start
-```
 
-### View Logs
-```bash
+# View logs
 ./deploy.sh logs [service_name]
-```
 
-### Update Deployment
-```bash
+# Update deployment
 ./deploy.sh update
+
+# Complete removal
+./deploy.sh remove-all
 ```
 
 ## What Gets Installed
 
 ### System Packages
 - Docker CE with Compose plugin
-- NVIDIA drivers (if GPU detected)
-- NVIDIA Container Toolkit
-- Python 3 and pip
+- NVIDIA drivers (if GPU detected and GPU server group is used)
+- NVIDIA Container Toolkit (for GPU servers)
+- Python 3 with pip and uv package manager
 - Essential development tools
 
 ### OpenRAG Components
-- Complete OpenRAG codebase
-- All required Python dependencies
-- Docker containers for:
-  - OpenRAG API server
-  - Milvus vector database
-  - PostgreSQL database
-  - Optional: vLLM inference server
+- Complete OpenRAG codebase from GitHub
+- All required Python dependencies installed via `uv`
+- Docker containers for OpenRAG services with appropriate profiles:
+  - GPU servers: Default profile (includes GPU-accelerated services)
+  - CPU servers: CPU profile (CPU-only services)
 
 ### Directory Structure
 ```
@@ -157,7 +156,9 @@ The deployment script provides several management options:
 ├── data/           # Document storage
 ├── db/             # Database files
 ├── logs/           # Application logs
+├── .hydra_config/  # Hydra configuration cache
 ├── model_weights/  # Cached model files
+├── vdb/volumes/    # Vector database volumes
 ├── .env            # Environment configuration
 └── ...             # OpenRAG source code
 ```
@@ -166,7 +167,7 @@ The deployment script provides several management options:
 
 ### Environment Variables
 
-The deployment automatically creates a `.env` file from `.env.example`. Key variables to customize:
+The deployment automatically creates a `.env` file from `.env.example` or copies a local `.env` file if present. Key variables to customize:
 
 ```bash
 # LLM Configuration
@@ -182,15 +183,34 @@ RETRIEVER_TOP_K=20
 EMBEDDER_MODEL_NAME=Qwen/Qwen3-Embedding-0.6B
 ```
 
+### Version Configuration
+
+The playbook uses these default versions (configurable via inventory variables):
+
+```yaml
+# Docker and NVIDIA versions
+docker_compose_version: "2.21.0"
+nvidia_driver_version: "535"
+docker_ce_version: "latest"
+nvidia_container_toolkit_version: "1.17.8-1"
+```
+
 ### Inventory Variables
 
 You can set variables in your inventory file:
 
 ```ini
-[openrag_servers:vars]
+[gpu_servers:vars]
 nvidia_driver_version=535
 project_user=ubuntu
-project_path=/opt/openrag
+project_path=/home/ubuntu/openrag
+
+[cpu_servers:vars]
+project_user=ubuntu
+project_path=/home/ubuntu/openrag
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
 ```
 
 ## Troubleshooting
@@ -230,37 +250,15 @@ docker system prune -a
 ./deploy.sh
 ```
 
-## Security Considerations
+### Complete System Reset
 
-- Change default passwords in `.env` file
-- Use SSH key authentication for remote servers
-- Configure firewall rules for exposed ports:
-  - 8080: OpenRAG API
-  - 8265: Ray Dashboard (optional)
-  - 19530: Milvus (internal only)
-
-## Advanced Usage
-
-### Custom Docker Profiles
+For a complete removal of all components (Docker, NVIDIA drivers, OpenRAG):
 
 ```bash
-# Start with CPU profile
-docker compose --profile cpu up -d
-
-# Start with GPU profile (default)
-docker compose up -d
+# Use the deployment script's removal option
+./deploy.sh remove-all
 ```
 
-### Distributed Ray Deployment
-
-For multi-node Ray clusters, see the main documentation on distributed deployment.
-
-## Support
-
-For issues specific to the Ansible deployment:
-1. Check the Ansible logs
-2. Verify inventory configuration
-3. Test SSH connectivity: `ansible all -i inventory.ini -m ping`
-4. Check system requirements
+**Warning**: This will remove Docker, NVIDIA drivers, and all related components. Use with caution!
 
 For OpenRAG application issues, refer to the main project documentation.
