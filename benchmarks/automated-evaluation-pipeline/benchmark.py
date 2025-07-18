@@ -81,14 +81,11 @@ llm_judge_settings = {
 
 
 class CompletionEvaluationResponse(BaseModel):
-    output: Literal[
-        # "complete", "mostly_complete", "partially_complete", "incomplete"
-        "complet", "presque complet", "partiellement complet", "incomplet"
-    ] = Field(
-        ...,
-        description="Le résultat du juge LLM. Il peut être l'un des suivants : "
-        "« complet », « presque complet », « partiellement complet », « incomplet »."
-        "Cela indique dans quelle mesure la réponse générée correspond à la vraie réponse.",
+    score: int = Field(..., 
+                       ge=1, 
+                       le=10, 
+                       description="Le résultat du juge LLM."
+        "Le résultat est compris entre 1 et 10, où 1 indique une réponse très incomplète et 10 indique une réponse très complète."
         # "The output of the LLM judge. It can be one of the following: "
         # "'complete', 'mostly_complete', 'partially_complete', 'incomplete'. "
         # "This indicates how well the generated answer matches the true answer.",
@@ -96,14 +93,11 @@ class CompletionEvaluationResponse(BaseModel):
 
 
 class PrecisionEvaluationResponse(BaseModel):
-    output: Literal[
-        # "Highly_precise", "mostly_precise", "low_precision", "imprecise"
-        "Très précis", "plutôt précis", "faible précision", "imprécis"
-    ] = Field(
-        ...,
-        description="Le résultat du juge LLM. Il peut être : "
-        "« très précis », « plutôt précis », « faible précision », « imprécis ». "
-        "Cela indique dans quelle mesure la réponse générée correspond à la vraie réponse.",
+    score: int = Field(..., 
+                       ge=1, 
+                       le=10, 
+                       description="Le résultat du juge LLM."
+        "Le résultat est compris entre 1 et 10, où 1 indique une réponse très imprécise et 10 indique une réponse très précise."
         # "The output of the LLM judge. It can be one of the following: "
         # "'Highly_precise', 'mostly_precise', 'low_precision', 'imprecise'. "
         # "This indicates how well the generated answer matches the true answer.",
@@ -189,7 +183,7 @@ async def response_judgment_per_question(
                     {"role": "user", "content": s},
                 ]
             )
-            return response_for_completion.output, response_for_precision.output
+            return response_for_completion.score, response_for_precision.score
         except Exception as e:
             logger.debug(f"Error evaluating response: {e}")
             return "error", "error"
@@ -283,10 +277,11 @@ async def main():
     print("\n", "-" * 50, "\n")
     print("\nCompletion evaluation distribution:")
     print(eval_results["completion_evaluation"].value_counts())
+    print(f"Completion evaluation average: {eval_results['completion_evaluation'].mean():.3f}")
     print("\n", "-" * 50, "\n")
     print("\nPrecision evaluation distribution:")
     print(eval_results["precision_evaluation"].value_counts())
-
+    print(f"Precision evaluation average: {eval_results['precision_evaluation'].mean():.3f}")
 
 if __name__ == "__main__":
     asyncio.run(main())
