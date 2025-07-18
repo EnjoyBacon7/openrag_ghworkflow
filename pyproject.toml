@@ -40,6 +40,7 @@ dependencies = [
     "umap-learn>=0.5.7",
     "eml-parser>=2.0.0",
     "psutil>=7.0.0",
+    "plotly>=6.2.0",
 ]
 
 [dependency-groups]
