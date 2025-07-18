@@ -2,18 +2,15 @@
 # GPU-enabled servers setup
 - name: Setup OpenRAG Environment (GPU-enabled)
   hosts: gpu_servers
-  become: yes
+  become: true
   vars:
     # Version configurations
     docker_compose_version: "2.21.0"
-    nvidia_driver_version: "535"
     docker_ce_version: "latest"
-    nvidia_container_toolkit_version: "1.17.8-1"
 
     # Project configurations
     project_user: "{{ ansible_user | default('ubuntu') }}"
     project_path: "/home/{{ project_user }}/openrag"
-    compose_profile: "" # Default GPU profile
 
     # System packages required for all installations
     common_packages:
@@ -49,11 +46,16 @@
       - model_weights
       - vdb/volumes
 
+    # GPU-specific configurations
+    nvidia_driver_version: "535"
+    nvidia_container_toolkit_version: "1.17.8-1"
+    compose_profile: "" # Default GPU profile
+
   tasks:
     # ========== SYSTEM PREPARATION ==========
     - name: Update apt cache
       apt:
-        update_cache: yes
+        update_cache: true
         cache_valid_time: 3600
 
     - name: Install required system packages
@@ -110,8 +112,8 @@
               - nsight-*
               - libnvidia-*
             state: absent
-            purge: yes
-          ignore_errors: yes
+            purge: true
+          ignore_errors: true
 
         - name: Remove held packages and fix broken dependencies
           shell: |
@@ -121,7 +123,7 @@
             apt-get autoclean
             dpkg --configure -a
             apt-get -f install -y
-          ignore_errors: yes
+          ignore_errors: true
 
         - name: Download NVIDIA repository key
           get_url:
@@ -134,7 +136,7 @@
 
         - name: Update apt cache after adding NVIDIA repo
           apt:
-            update_cache: yes
+            update_cache: true
       when: not nvidia_version_matches
 
     - name: Install NVIDIA drivers (without CUDA toolkit)
@@ -144,9 +146,9 @@
             name:
               - nvidia-driver-{{ nvidia_driver_version }}
             state: present
-            update_cache: yes
+            update_cache: true
           register: nvidia_basic_install
-          ignore_errors: yes
+          ignore_errors: true
 
         - name: Install NVIDIA DKMS if basic install succeeded
           apt:
@@ -154,13 +156,13 @@
               - nvidia-dkms-{{ nvidia_driver_version }}
             state: present
           when: not nvidia_basic_install.failed
-          ignore_errors: yes
+          ignore_errors: true
 
         - name: Try alternative NVIDIA driver installation
           shell: |
             apt-get install -y nvidia-driver-535-server nvidia-utils-535-server
           when: nvidia_basic_install.failed
-          ignore_errors: yes
+          ignore_errors: true
       when: not nvidia_version_matches
 
     - name: Check NVIDIA driver status and handle reboot if needed
@@ -168,7 +170,7 @@
         - name: Initial NVIDIA driver check
           shell: nvidia-smi
           register: nvidia_initial_check
-          ignore_errors: yes
+          ignore_errors: true
           changed_when: false
 
         - name: Check if driver/library version mismatch exists
@@ -196,7 +198,7 @@
         - name: Final NVIDIA driver verification
           shell: nvidia-smi
           register: nvidia_final_check
-          ignore_errors: yes
+          ignore_errors: true
           changed_when: false
 
         - name: Display NVIDIA driver status
@@ -238,8 +240,8 @@
               - docker-ce
               - docker-ce-cli
             state: absent
-            purge: yes
-          ignore_errors: yes
+            purge: true
+          ignore_errors: true
 
         - name: Remove Docker repository and key files
           file:
@@ -253,7 +255,7 @@
             - /etc/apt/keyrings/docker.gpg
             - /etc/apt/keyrings/docker.asc
             - /etc/apt/trusted.gpg.d/docker.gpg
-          ignore_errors: yes
+          ignore_errors: true
 
         - name: Clean Docker references and update cache
           shell: |
@@ -261,13 +263,13 @@
             sed -i '/docker/d' /etc/apt/sources.list
             apt-key del 9DC858229FC7DD38854AE2D88D81803C0EBFCD88 2>/dev/null || true
             apt-key del 0EBFCD88 2>/dev/null || true
-          ignore_errors: yes
+          ignore_errors: true
 
         - name: Update apt cache after cleanup
           apt:
-            update_cache: yes
-            autoclean: yes
-            autoremove: yes
+            update_cache: true
+            autoclean: true
+            autoremove: true
       when: docker_installation_needed
 
     - name: Install Docker (if needed)
@@ -276,7 +278,7 @@
           apt:
             name: [ca-certificates, curl]
             state: present
-            update_cache: yes
+            update_cache: true
 
         - name: Create keyrings directory
           file:
@@ -292,7 +294,7 @@
 
         - name: Update apt cache and install Docker
           apt:
-            update_cache: yes
+            update_cache: true
             name: "{{ docker_packages }}"
             state: present
       when: docker_installation_needed
@@ -301,13 +303,13 @@
       systemd:
         name: docker
         state: started
-        enabled: yes
+        enabled: true
 
     - name: Add user to docker group
       user:
         name: "{{ project_user }}"
         groups: docker
-        append: yes
+        append: true
 
     # ========== NVIDIA CONTAINER TOOLKIT ==========
     - name: Check current NVIDIA Container Toolkit version
@@ -344,19 +346,19 @@
             - /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
             - /etc/apt/keyrings/nvidia-container-toolkit.gpg
             - /etc/apt/trusted.gpg.d/nvidia-container-toolkit.gpg
-          ignore_errors: yes
+          ignore_errors: true
 
         - name: Clean NVIDIA container references
           shell: |
             sed -i '/nvidia.github.io\/libnvidia-container/d' /etc/apt/sources.list
             apt-key del $(apt-key list 2>/dev/null | grep -A1 "nvidia" | grep -oE "[A-F0-9]{8}" | head -1) 2>/dev/null || true
-          ignore_errors: yes
+          ignore_errors: true
 
         - name: Update apt cache
           apt:
-            update_cache: yes
-            autoclean: yes
-          ignore_errors: yes
+            update_cache: true
+            autoclean: true
+          ignore_errors: true
       when: nvidia_ctk_installation_needed
 
     - name: Configure NVIDIA Container Toolkit repository
@@ -369,7 +371,7 @@
 
     - name: Install NVIDIA Container Toolkit packages
       apt:
-        update_cache: yes
+        update_cache: true
         name:
           - nvidia-container-toolkit={{ nvidia_container_toolkit_version }}
           - nvidia-container-toolkit-base={{ nvidia_container_toolkit_version }}
@@ -402,44 +404,45 @@
       git:
         repo: https://github.com/linagora/openrag.git
         dest: "{{ project_path }}"
-        force: yes
+        force: true
       become_user: "{{ project_user }}"
 
-    - name: Check if .env file exists
-      stat:
-        path: "{{ project_path }}/.env"
-      register: env_file
+    - name: Setup environment file
+      block:
+        - name: Check if .env file exists
+          stat:
+            path: "{{ project_path }}/.env"
+          register: env_file
 
-    - name: Check if local .env file exists (in playbook directory)
-      stat:
-        path: "{{ playbook_dir }}/.env"
-      register: local_env_file
-      delegate_to: localhost
-      become: no
+        - name: Check if local .env file exists (in playbook directory)
+          stat:
+            path: "{{ playbook_dir }}/.env"
+          register: local_env_file
+          delegate_to: localhost
+          become: false
 
-    - name: Copy local .env file to project directory if it exists
-      copy:
-        src: "{{ playbook_dir }}/.env"
-        dest: "{{ project_path }}/.env"
-        owner: "{{ project_user }}"
-        group: "{{ project_user }}"
-        mode: "0644"
-      when:
-        - not env_file.stat.exists
-        - local_env_file.stat.exists
-      become_user: "{{ project_user }}"
+        - name: Copy local .env file to project directory if it exists
+          copy:
+            src: "{{ playbook_dir }}/.env"
+            dest: "{{ project_path }}/.env"
+            owner: "{{ project_user }}"
+            group: "{{ project_user }}"
+            mode: "0644"
+          when:
+            - not env_file.stat.exists
+            - local_env_file.stat.exists
 
-    - name: Copy .env.example to .env if neither local nor project .env exists
-      copy:
-        src: "{{ project_path }}/.env.example"
-        dest: "{{ project_path }}/.env"
-        remote_src: yes
-        owner: "{{ project_user }}"
-        group: "{{ project_user }}"
-        mode: "0644"
-      when:
-        - not env_file.stat.exists
-        - not local_env_file.stat.exists
+        - name: Copy .env.example to .env if neither local nor project .env exists
+          copy:
+            src: "{{ project_path }}/.env.example"
+            dest: "{{ project_path }}/.env"
+            remote_src: true
+            owner: "{{ project_user }}"
+            group: "{{ project_user }}"
+            mode: "0644"
+          when:
+            - not env_file.stat.exists
+            - not local_env_file.stat.exists
       become_user: "{{ project_user }}"
 
     - name: Create required directories
@@ -458,108 +461,106 @@
         - vdb/volumes
       become_user: "{{ project_user }}"
 
-    # Python Environment Setup
-    - name: Install uv (Python package manager)
-      shell: curl -LsSf https://astral.sh/uv/install.sh | sh
-      become_user: "{{ project_user }}"
-      args:
-        creates: "/home/{{ project_user }}/.cargo/bin/uv"
+    - name: Setup Python environment
+      block:
+        - name: Install uv (Python package manager)
+          shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+          args:
+            creates: "/home/{{ project_user }}/.cargo/bin/uv"
 
-    - name: Add uv to PATH in .bashrc
-      lineinfile:
-        path: "/home/{{ project_user }}/.bashrc"
-        line: 'export PATH="$HOME/.cargo/bin:$PATH"'
-        create: yes
-      become_user: "{{ project_user }}"
-
-    # Pre-pull heavy images
-    - name: Pre-pull Docker images
-      shell: |
-        cd {{ project_path }}
-        docker compose pull
-      become_user: "{{ project_user }}"
-      ignore_errors: yes
-
-    - name: Build Docker images
-      shell: |
-        cd {{ project_path }}
-        docker compose build
+        - name: Add uv to PATH in .bashrc
+          lineinfile:
+            path: "/home/{{ project_user }}/.bashrc"
+            line: 'export PATH="$HOME/.cargo/bin:$PATH"'
+            create: true
       become_user: "{{ project_user }}"
 
-    - name: Start Docker Compose services (GPU profile)
-      shell: |
-        cd {{ project_path }}
-        docker compose --profile "{{ compose_profile }}" up -d
+    - name: Deploy and start OpenRAG services
+      block:
+        - name: Pre-pull Docker images
+          shell: |
+            cd {{ project_path }}
+            docker compose pull
+          ignore_errors: true
+
+        - name: Build Docker images
+          shell: |
+            cd {{ project_path }}
+            docker compose build
+
+        - name: Start Docker Compose services (GPU profile)
+          shell: |
+            cd {{ project_path }}
+            docker compose --profile "{{ compose_profile }}" up -d
+
+        - name: Wait for Docker containers to be running and healthy
+          shell: |
+            cd {{ project_path }}
+            # Wait for containers to start and stabilize
+            sleep 30
+            # Check if containers are running
+            running_containers=$(docker compose ps --services --filter "status=running" | wc -l)
+            total_containers=$(docker compose ps --services | wc -l)
+            echo "Running containers: $running_containers/$total_containers"
+            if [ $running_containers -gt 0 ]; then
+              exit 0
+            else
+              exit 1
+            fi
+          register: container_health
+          retries: 10
+          delay: 30
+          until: container_health.rc == 0
+          ignore_errors: true
       become_user: "{{ project_user }}"
 
-    - name: Wait for Docker containers to be running and healthy
-      shell: |
-        cd {{ project_path }}
-        # Wait for containers to start and stabilize
-        sleep 30
-        # Check if containers are running
-        running_containers=$(docker compose ps --services --filter "status=running" | wc -l)
-        total_containers=$(docker compose ps --services | wc -l)
-        echo "Running containers: $running_containers/$total_containers"
-        if [ $running_containers -gt 0 ]; then
-          exit 0
-        else
-          exit 1
-        fi
+    # Verification and Testing
+    - name: Verify deployment and test NVIDIA integration
+      block:
+        - name: Check Docker containers status
+          shell: docker ps --format "table {{ '{{.Names}}' }}\t{{ '{{.Status}}' }}\t{{ '{{.Ports}}' }}"
+          register: docker_status
+
+        - name: Display running containers
+          debug:
+            var: docker_status.stdout_lines
+
+        - name: Test NVIDIA Docker integration
+          shell: docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
+          register: nvidia_test
+          ignore_errors: true
+
+        - name: Test NVIDIA Docker integration with alternative runtime flag
+          shell: docker run --rm --gpus all ubuntu nvidia-smi
+          register: nvidia_test_fallback
+          ignore_errors: true
+          when: nvidia_test.rc != 0
+
+        - name: Display NVIDIA test result
+          debug:
+            var: "{{ nvidia_test.stdout_lines if nvidia_test.rc == 0 else nvidia_test_fallback.stdout_lines }}"
+          when: nvidia_test.rc == 0 or nvidia_test_fallback.rc == 0
+
+        - name: Display NVIDIA test failure if all attempts failed
+          debug:
+            msg:
+              - "NVIDIA Docker integration test failed with all attempts"
+              - "Runtime flag error: {{ nvidia_test.stderr }}"
+              - "GPUs flag error: {{ nvidia_test_fallback.stderr | default('Not attempted') }}"
+              - "This usually indicates NVIDIA Container Toolkit is not properly configured"
+          when: nvidia_test.rc != 0 and nvidia_test_fallback.rc != 0
+
+        - name: Show service URLs
+          debug:
+            msg:
+              - "OpenRAG API: http://{{ ansible_default_ipv4.address }}:8080"
+              - "Ray Dashboard: http://{{ ansible_default_ipv4.address }}:8265"
+              - "Milvus: {{ ansible_default_ipv4.address }}:19530"
       become_user: "{{ project_user }}"
-      register: container_health
-      retries: 10
-      delay: 30
-      until: container_health.rc == 0
-      ignore_errors: yes
-
-    # Verification
-    - name: Check Docker containers status
-      shell: docker ps --format "table {{ '{{.Names}}' }}\t{{ '{{.Status}}' }}\t{{ '{{.Ports}}' }}"
-      register: docker_status
-      become_user: "{{ project_user }}"
-
-    - name: Display running containers
-      debug:
-        var: docker_status.stdout_lines
-
-    - name: Test NVIDIA Docker integration
-      shell: docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
-      register: nvidia_test
-      become_user: "{{ project_user }}"
-      ignore_errors: yes
-
-    - name: Test NVIDIA Docker integration with alternative runtime flag
-      shell: docker run --rm --gpus all ubuntu nvidia-smi
-      register: nvidia_test_fallback
-      become_user: "{{ project_user }}"
-      ignore_errors: yes
-      when: nvidia_test.rc != 0
-
-    - name: Display NVIDIA test result
-      debug:
-        var: "{{ nvidia_test.stdout_lines if nvidia_test.rc == 0 else nvidia_test_fallback.stdout_lines }}"
-      when: nvidia_test.rc == 0 or nvidia_test_fallback.rc == 0
-
-    - name: Display NVIDIA test failure if all attempts failed
-      debug:
-        msg:
-          - "NVIDIA Docker integration test failed with all attempts"
-          - "Runtime flag error: {{ nvidia_test.stderr }}"
-          - "GPUs flag error: {{ nvidia_test_fallback.stderr | default('Not attempted') }}"
-          - "This usually indicates NVIDIA Container Toolkit is not properly configured"
-      when: nvidia_test.rc != 0 and nvidia_test_fallback.rc != 0
-
-    - name: Show service URLs
-      debug:
-        msg:
-          - "OpenRAG API: http://{{ ansible_default_ipv4.address }}:8080"
-          - "Ray Dashboard: http://{{ ansible_default_ipv4.address }}:8265"
-          - "Milvus: {{ ansible_default_ipv4.address }}:19530"
 
 - name: Setup OpenRAG Environment (CPU-only)
   hosts: cpu_servers
-  become: yes
+  become: true
   vars:
     # Version configurations
     docker_compose_version: "2.21.0"
@@ -568,7 +569,6 @@
     # Project configurations
     project_user: "{{ ansible_user | default('ubuntu') }}"
     project_path: "/home/{{ project_user }}/openrag"
-    compose_profile: "cpu" # CPU profile
 
     # System packages required for all installations
     common_packages:
@@ -604,10 +604,13 @@
       - model_weights
       - vdb/volumes
 
+    # CPU-specific configurations
+    compose_profile: "cpu" # CPU profile
+
   tasks:
     - name: Update apt cache
       apt:
-        update_cache: yes
+        update_cache: true
         cache_valid_time: 3600
 
     - name: Install required system packages
@@ -615,102 +618,100 @@
         name: "{{ common_packages }}"
         state: present
 
-    # Docker Installation - Following Official Docker Guide
-    - name: Completely remove Docker and repository configurations
+    - name: Install Docker
       block:
-        - name: Uninstall old Docker versions
+        - name: Completely remove Docker and repository configurations
+          block:
+            - name: Uninstall old Docker versions
+              apt:
+                name:
+                  - docker.io
+                  - docker-doc
+                  - docker-compose
+                  - docker-compose-v2
+                  - podman-docker
+                  - containerd
+                  - runc
+                  - docker-ce
+                  - docker-ce-cli
+                state: absent
+                purge: true
+              ignore_errors: true
+
+            - name: Remove all Docker-related repository and key files
+              file:
+                path: "{{ item }}"
+                state: absent
+              loop:
+                - /etc/apt/sources.list.d/docker.list
+                - /etc/apt/sources.list.d/docker.list.save
+                - /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
+                - /usr/share/keyrings/docker-archive-keyring.gpg
+                - /etc/apt/keyrings/docker.gpg
+                - /etc/apt/keyrings/docker.asc
+                - /etc/apt/trusted.gpg.d/docker.gpg
+              ignore_errors: true
+
+            - name: Clean any Docker references from main sources.list
+              shell: |
+                sed -i '/download.docker.com/d' /etc/apt/sources.list
+                sed -i '/docker/d' /etc/apt/sources.list
+              ignore_errors: true
+
+            - name: Remove Docker GPG keys from apt-key
+              shell: |
+                apt-key del 9DC858229FC7DD38854AE2D88D81803C0EBFCD88 2>/dev/null || true
+                apt-key del 0EBFCD88 2>/dev/null || true
+              ignore_errors: true
+
+            - name: Clean apt cache and update
+              apt:
+                update_cache: true
+                autoclean: true
+                autoremove: true
+
+        - name: Install Docker prerequisites
           apt:
             name:
-              - docker.io
-              - docker-doc
-              - docker-compose
-              - docker-compose-v2
-              - podman-docker
-              - containerd
-              - runc
-              - docker-ce
-              - docker-ce-cli
-            state: absent
-            purge: yes
-          ignore_errors: yes
+              - ca-certificates
+              - curl
+            state: present
+            update_cache: true
 
-        - name: Remove all Docker-related repository and key files
+        - name: Create keyrings directory
           file:
-            path: "{{ item }}"
-            state: absent
-          loop:
-            - /etc/apt/sources.list.d/docker.list
-            - /etc/apt/sources.list.d/docker.list.save
-            - /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
-            - /usr/share/keyrings/docker-archive-keyring.gpg
-            - /etc/apt/keyrings/docker.gpg
-            - /etc/apt/keyrings/docker.asc
-            - /etc/apt/trusted.gpg.d/docker.gpg
-          ignore_errors: yes
+            path: /etc/apt/keyrings
+            state: directory
+            mode: "0755"
 
-        - name: Clean any Docker references from main sources.list
+        - name: Add Docker's official GPG key
           shell: |
-            sed -i '/download.docker.com/d' /etc/apt/sources.list
-            sed -i '/docker/d' /etc/apt/sources.list
-          ignore_errors: yes
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+            chmod a+r /etc/apt/keyrings/docker.asc
 
-        - name: Remove Docker GPG keys from apt-key
+        - name: Add Docker repository to Apt sources
           shell: |
-            apt-key del 9DC858229FC7DD38854AE2D88D81803C0EBFCD88 2>/dev/null || true
-            apt-key del 0EBFCD88 2>/dev/null || true
-          ignore_errors: yes
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-        - name: Clean apt cache and update
+        - name: Update apt cache and install Docker packages
           apt:
-            update_cache: yes
-            autoclean: yes
-            autoremove: yes
+            update_cache: true
+            name: "{{ docker_packages }}"
+            state: present
 
-    - name: Install Docker prerequisites
-      apt:
-        name:
-          - ca-certificates
-          - curl
-        state: present
-        update_cache: yes
+        - name: Start and enable Docker service
+          systemd:
+            name: docker
+            state: started
+            enabled: true
 
-    - name: Create keyrings directory
-      file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: "0755"
+        - name: Add user to docker group
+          user:
+            name: "{{ project_user }}"
+            groups: docker
+            append: true
 
-    - name: Add Docker's official GPG key
-      shell: |
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-        chmod a+r /etc/apt/keyrings/docker.asc
-
-    - name: Add Docker repository to Apt sources
-      shell: |
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-    - name: Update apt cache after adding Docker repository
-      apt:
-        update_cache: yes
-
-    - name: Install Docker packages
-      apt:
-        name: "{{ docker_packages }}"
-        state: present
-
-    - name: Start and enable Docker service
-      systemd:
-        name: docker
-        state: started
-        enabled: yes
-
-    - name: Add user to docker group
-      user:
-        name: "{{ project_user }}"
-        groups: docker
-        append: yes
-
-    # Project Setup (same as GPU version)
+    # Project Setup
     - name: Create project directory
       file:
         path: "{{ project_path }}"
@@ -723,44 +724,45 @@
       git:
         repo: https://github.com/linagora/openrag.git
         dest: "{{ project_path }}"
-        force: yes
+        force: true
       become_user: "{{ project_user }}"
 
-    - name: Check if .env file exists
-      stat:
-        path: "{{ project_path }}/.env"
-      register: env_file
+    - name: Setup environment file
+      block:
+        - name: Check if .env file exists
+          stat:
+            path: "{{ project_path }}/.env"
+          register: env_file
 
-    - name: Check if local .env file exists (in playbook directory)
-      stat:
-        path: "{{ playbook_dir }}/.env"
-      register: local_env_file
-      delegate_to: localhost
-      become: no
+        - name: Check if local .env file exists (in playbook directory)
+          stat:
+            path: "{{ playbook_dir }}/.env"
+          register: local_env_file
+          delegate_to: localhost
+          become: false
 
-    - name: Copy local .env file to project directory if it exists
-      copy:
-        src: "{{ playbook_dir }}/.env"
-        dest: "{{ project_path }}/.env"
-        owner: "{{ project_user }}"
-        group: "{{ project_user }}"
-        mode: "0644"
-      when:
-        - not env_file.stat.exists
-        - local_env_file.stat.exists
-      become_user: "{{ project_user }}"
+        - name: Copy local .env file to project directory if it exists
+          copy:
+            src: "{{ playbook_dir }}/.env"
+            dest: "{{ project_path }}/.env"
+            owner: "{{ project_user }}"
+            group: "{{ project_user }}"
+            mode: "0644"
+          when:
+            - not env_file.stat.exists
+            - local_env_file.stat.exists
 
-    - name: Copy .env.example to .env if neither local nor project .env exists
-      copy:
-        src: "{{ project_path }}/.env.example"
-        dest: "{{ project_path }}/.env"
-        remote_src: yes
-        owner: "{{ project_user }}"
-        group: "{{ project_user }}"
-        mode: "0644"
-      when:
-        - not env_file.stat.exists
-        - not local_env_file.stat.exists
+        - name: Copy .env.example to .env if neither local nor project .env exists
+          copy:
+            src: "{{ project_path }}/.env.example"
+            dest: "{{ project_path }}/.env"
+            remote_src: true
+            owner: "{{ project_user }}"
+            group: "{{ project_user }}"
+            mode: "0644"
+          when:
+            - not env_file.stat.exists
+            - not local_env_file.stat.exists
       become_user: "{{ project_user }}"
 
     - name: Create required directories
@@ -779,73 +781,73 @@
         - vdb/volumes
       become_user: "{{ project_user }}"
 
-    # Python Environment Setup
-    - name: Install uv (Python package manager)
-      shell: curl -LsSf https://astral.sh/uv/install.sh | sh
-      become_user: "{{ project_user }}"
-      args:
-        creates: "/home/{{ project_user }}/.cargo/bin/uv"
+    - name: Setup Python environment
+      block:
+        - name: Install uv (Python package manager)
+          shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+          args:
+            creates: "/home/{{ project_user }}/.cargo/bin/uv"
 
-    - name: Add uv to PATH in .bashrc
-      lineinfile:
-        path: "/home/{{ project_user }}/.bashrc"
-        line: 'export PATH="$HOME/.cargo/bin:$PATH"'
-        create: yes
-      become_user: "{{ project_user }}"
-
-    # Pre-pull images
-    - name: Pre-pull Docker images
-      shell: |
-        cd {{ project_path }}
-        docker compose pull
-      become_user: "{{ project_user }}"
-      ignore_errors: yes
-
-    - name: Build Docker images
-      shell: |
-        cd {{ project_path }}
-        docker compose build
+        - name: Add uv to PATH in .bashrc
+          lineinfile:
+            path: "/home/{{ project_user }}/.bashrc"
+            line: 'export PATH="$HOME/.cargo/bin:$PATH"'
+            create: true
       become_user: "{{ project_user }}"
 
-    - name: Start Docker Compose services (CPU profile)
-      shell: |
-        cd {{ project_path }}
-        docker compose --profile {{ compose_profile }} up -d
+    - name: Deploy and start OpenRAG services
+      block:
+        - name: Pre-pull Docker images
+          shell: |
+            cd {{ project_path }}
+            docker compose pull
+          ignore_errors: true
+
+        - name: Build Docker images
+          shell: |
+            cd {{ project_path }}
+            docker compose build
+
+        - name: Start Docker Compose services (CPU profile)
+          shell: |
+            cd {{ project_path }}
+            docker compose --profile {{ compose_profile }} up -d
+
+        - name: Wait for Docker containers to be running and healthy
+          shell: |
+            cd {{ project_path }}
+            # Wait for containers to start and stabilize
+            sleep 30
+            # Check if containers are running
+            running_containers=$(docker compose ps --services --filter "status=running" | wc -l)
+            total_containers=$(docker compose ps --services | wc -l)
+            echo "Running containers: $running_containers/$total_containers"
+            if [ $running_containers -gt 0 ]; then
+              exit 0
+            else
+              exit 1
+            fi
+          register: container_health
+          retries: 10
+          delay: 30
+          until: container_health.rc == 0
+          ignore_errors: true
       become_user: "{{ project_user }}"
 
-    - name: Wait for Docker containers to be running and healthy
-      shell: |
-        cd {{ project_path }}
-        # Wait for containers to start and stabilize
-        sleep 30
-        # Check if containers are running
-        running_containers=$(docker compose ps --services --filter "status=running" | wc -l)
-        total_containers=$(docker compose ps --services | wc -l)
-        echo "Running containers: $running_containers/$total_containers"
-        if [ $running_containers -gt 0 ]; then
-          exit 0
-        else
-          exit 1
-        fi
+    # Verification and Service URLs
+    - name: Verify deployment and show service information
+      block:
+        - name: Check Docker containers status
+          shell: docker ps --format "table {{ '{{.Names}}' }}\t{{ '{{.Status}}' }}\t{{ '{{.Ports}}' }}"
+          register: docker_status
+
+        - name: Display running containers
+          debug:
+            var: docker_status.stdout_lines
+
+        - name: Show service URLs
+          debug:
+            msg:
+              - "OpenRAG API: http://{{ ansible_default_ipv4.address }}:8080"
+              - "Milvus: {{ ansible_default_ipv4.address }}:19530"
       become_user: "{{ project_user }}"
-      register: container_health
-      retries: 10
-      delay: 30
-      until: container_health.rc == 0
-      ignore_errors: yes
-
-    # Verification
-    - name: Check Docker containers status
-      shell: docker ps --format "table {{ '{{.Names}}' }}\t{{ '{{.Status}}' }}\t{{ '{{.Ports}}' }}"
-      register: docker_status
-      become_user: "{{ project_user }}"
-
-    - name: Display running containers
-      debug:
-        var: docker_status.stdout_lines
-
-    - name: Show service URLs
-      debug:
-        msg:
-          - "OpenRAG API: http://{{ ansible_default_ipv4.address }}:8080"
-          - "Milvus: {{ ansible_default_ipv4.address }}:19530"
