@@ -48,6 +48,12 @@ class RetrieverPipeline:
             self.logger.debug("Reranker enabled", reranker=self.reranker_enabled)
             self.reranker = Reranker(self.logger, config)
 
+        # MAP-REDUCE
+        self.MAP_REDUCE_enabled = config.MAP_REDUCE["enable"]
+        self.map_reduce = None
+        if self.MAP_REDUCE_enabled:
+            self.map_reduce: RAGMapReduce = RAGMapReduce(config=config)
+
         # grader
         self.grader: Grader = None
         self.grader_enabled = config.grader["enable"]
@@ -72,6 +78,11 @@ class RetrieverPipeline:
 
             else:
                 docs = docs[: self.reranker_top_k]
+
+            # MAP-REDUCE sorting result
+            if self.MAP_REDUCE_enabled:
+                resultat_MAP_REDUCE = await self.map_reduce.map_reduce(query=query, chunks=docs)
+                docs = [item[1] for item in resultat_MAP_REDUCE]
 
         logger.debug("Documents after reranking", document_count=len(docs))
 
@@ -108,8 +119,6 @@ class RagPipeline:
             base_url=config.vlm["base_url"], api_key=config.vlm["api_key"]
         )
         self.max_contextualized_query_len = config.rag["max_contextualized_query_len"]
-
-        self.map_reduce: RAGMapReduce = RAGMapReduce(config=config)
 
     async def generate_query(self, messages: list[dict]) -> str:
         match RAGMODE(self.rag_mode):
@@ -155,22 +164,6 @@ class RagPipeline:
         docs = await self.retriever_pipeline.retrieve_docs(
             partition=partition, query=query
         )
-
-        # if RAG_MAP_REDUCE:
-        #     context = "Extracted documents:\n"
-        #     relevant_docs = []
-        #     res = await self.map_reduce.map(query=query, chunks=docs)
-        #     for synthesis, doc in res:
-        #         context += synthesis + "\n"
-        #         context += "-" * 40 + "\n"
-        #         relevant_docs.append(doc)
-
-        #     logger.debug(context)
-        #     docs = relevant_docs
-
-        # else:
-        #     # 3. Format the retrieved docs
-        #     context = format_context(docs)
 
         # 3. Format the retrieved docs
         context = format_context(docs)

@@ -55,6 +55,9 @@ reranker:
 grader:
   enable: false
 
+MAP_REDUCE:
+  enable: ${oc.decode:${oc.env:MAP_REDUCE_ENABLED, true}}
+
 verbose:
   verbose: true
   level: DEBUG
