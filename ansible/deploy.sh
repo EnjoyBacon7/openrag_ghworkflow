@@ -1,8 +1,16 @@
 #!/bin/bash
 
-# OpenRAG Ansible Deployment
+# OpenRAG Ansible Deployment Script
+# Provides interactive and command-line deployment options for OpenRAG
 
 set -e
+
+# -------------------- Configuration Constants --------------------
+readonly MAIN_PLAYBOOK="playbooks/main-playbook.yml"
+readonly NVIDIA_PLAYBOOK="playbooks/nvidia-drivers-toolkit.yml"
+readonly DOCKER_PLAYBOOK="playbooks/docker.yml"
+readonly OPENRAG_PLAYBOOK="playbooks/openrag.yml"
+readonly INVENTORY_FILE="inventory.ini"
 
 # -------------------- Colors and logging formatting --------------------
 RED='\033[0;31m'
@@ -79,8 +87,8 @@ deploy_local() {
         exit 1
     fi
     
-    if [ -f "inventory.ini" ]; then
-        print_warning "Existing inventory.ini will be overwritten."
+    if [ -f "$INVENTORY_FILE" ]; then
+        print_warning "Existing $INVENTORY_FILE will be overwritten."
         read -p "Continue? (y/n): " confirm
         if [[ "$confirm" != [Yy] ]]; then
             print_status "Deployment cancelled."
@@ -98,12 +106,12 @@ deploy_local() {
     
     # Deploy with ansible
     print_status "Starting deployment..."
-    ansible-playbook -i inventory.ini playbook.yml --ask-become-pass
+    ansible-playbook -i "$INVENTORY_FILE" "$MAIN_PLAYBOOK" --ask-become-pass
 }
 
 # Helper function to create CPU inventory
 create_local_cpu_inventory() {
-    cat > inventory.ini << 'EOF'
+    cat > "$INVENTORY_FILE" << 'EOF'
 [gpu_servers]
 
 [cpu_servers]
@@ -116,7 +124,7 @@ EOF
 
 # Helper function to create GPU inventory
 create_local_gpu_inventory() {
-    cat > inventory.ini << 'EOF'
+    cat > "$INVENTORY_FILE" << 'EOF'
 [gpu_servers]
 localhost ansible_connection=local
 
@@ -131,61 +139,130 @@ EOF
 # -------------------------- Advanced deployment ------------------------
 deploy_remote() {
     print_header "Deploying OpenRAG with GPU/CPU server distinction..."
-    
-    if [ ! -f "inventory.ini" ]; then
-        print_error "inventory.ini not found. Please create it first."
+    check_inventory
+    ansible-playbook -i "$INVENTORY_FILE" "$MAIN_PLAYBOOK" --ask-become-pass
+}
+
+# -------------------------- Modular deployment -------------------------
+# Helper function to check inventory
+check_inventory() {
+    if [ ! -f "$INVENTORY_FILE" ]; then
+        print_error "$INVENTORY_FILE not found. Please create it first."
         exit 1
     fi
-    
-    ansible-playbook -i inventory.ini playbook.yml --ask-become-pass
 }
+
+deploy_nvidia_only() {
+    print_header "Installing NVIDIA drivers and container toolkit only..."
+    check_inventory
+    ansible-playbook -i "$INVENTORY_FILE" "$NVIDIA_PLAYBOOK" --ask-become-pass
+}
+
+deploy_docker_only() {
+    print_header "Installing Docker only..."
+    check_inventory
+    ansible-playbook -i "$INVENTORY_FILE" "$DOCKER_PLAYBOOK" --ask-become-pass
+}
+
+deploy_openrag_only() {
+    print_header "Deploying OpenRAG application only..."
+    check_inventory
+    
+    print_warning "This assumes Docker is already installed and running."
+    read -p "Continue? (y/n): " confirm
+    if [[ "$confirm" != [Yy] ]]; then
+        print_status "Deployment cancelled."
+        return
+    fi
+    
+    ansible-playbook -i "$INVENTORY_FILE" "$OPENRAG_PLAYBOOK" --ask-become-pass
+}
+
+
 # -----------------------------------------------------------------------
 
 # ------------- Helper functions for deployment management --------------
+# Helper function for service operations
+run_service_command() {
+    local action="$1"
+    local command="$2"
+    local description="$3"
+    
+    print_header "$description"
+    
+    ansible all -i "$INVENTORY_FILE" -m shell -a "$command" --become-user="\$(whoami)"
+}
+
+show_playbook_info() {
+    print_header "OpenRAG Modular Playbooks Information"
+    echo ""
+    echo "This deployment uses modular Ansible playbooks located in the 'playbooks/' directory:"
+    echo ""
+    echo "📋 playbooks/main-playbook.yml - Orchestrates all components"
+    echo "   Runs all three playbooks in sequence"
+    echo ""
+    echo "🔧 playbooks/nvidia-drivers-toolkit.yml - NVIDIA Components"
+    echo "   • NVIDIA GPU drivers (version 535)"
+    echo "   • NVIDIA Container Toolkit for Docker GPU support"
+    echo "   • Target: gpu_servers group"
+    echo ""
+    echo "🐳 playbooks/docker.yml - Docker Installation"
+    echo "   • Docker CE and Docker Compose"
+    echo "   • Docker service configuration"
+    echo "   • Target: all servers"
+    echo ""
+    echo "🚀 playbooks/openrag.yml - OpenRAG Application"
+    echo "   • Repository cloning and setup"
+    echo "   • Environment configuration"
+    echo "   • Container deployment with smart profile selection"
+    echo "   • Conditional NVIDIA testing (GPU servers only)"
+    echo "   • Target: gpu_servers and cpu_servers (unified play)"
+    echo ""
+    echo "For more detailed information, see README-modular.md"
+    echo ""
+}
+
 check_status() {
-    print_header "Checking OpenRAG deployment status..."
-    
-    INVENTORY="inventory.ini"
-    
-    ansible all -i "$INVENTORY" -m shell -a "docker ps --format 'table {{'{{'}}.Names{{'}}'}}\t{{'{{'}}.Status{{'}}'}}'"
+    run_service_command "status" "docker ps --format 'table {{'{{'}}.Names{{'}}'}}\t{{'{{'}}.Status{{'}}'}}'" "Checking OpenRAG deployment status..."
 }
 
 stop_services() {
-    print_header "Stopping OpenRAG services..."
-    
-    INVENTORY="inventory.ini"
-    
-    # Check if OpenRAG directory exists before trying to stop services
-    ansible all -i "$INVENTORY" -m shell -a "if [ -d /home/\$(whoami)/openrag ]; then cd /home/\$(whoami)/openrag && docker compose down; else echo 'OpenRAG directory not found. No services to stop.'; fi" --become-user="\$(whoami)"
+    run_service_command "stop" "if [ -d /home/\$(whoami)/openrag ]; then cd /home/\$(whoami)/openrag && docker compose down; else echo 'OpenRAG directory not found. No services to stop.'; fi" "Stopping OpenRAG services..."
 }
 
 start_services() {
-    print_header "Starting OpenRAG services..."
-    
-    INVENTORY="inventory.ini"
-    
-    # Check if OpenRAG directory exists before trying to start services
-    ansible all -i "$INVENTORY" -m shell -a "if [ -d /home/\$(whoami)/openrag ]; then cd /home/\$(whoami)/openrag && docker compose up -d; else echo 'OpenRAG directory not found. Please deploy OpenRAG first.'; fi" --become-user="\$(whoami)"
+    run_service_command "start" "if [ -d /home/\$(whoami)/openrag ]; then cd /home/\$(whoami)/openrag && docker compose up -d; else echo 'OpenRAG directory not found. Please deploy OpenRAG first.'; fi" "Starting OpenRAG services..."
 }
 
 show_logs() {
-    print_header "Showing OpenRAG logs..."
-    
-    INVENTORY="inventory.ini"
-    
     SERVICE=${1:-openrag}
-    # Check if OpenRAG directory exists before trying to show logs
-    ansible all -i "$INVENTORY" -m shell -a "if [ -d /home/\$(whoami)/openrag ]; then cd /home/\$(whoami)/openrag && docker compose logs -f $SERVICE; else echo 'OpenRAG directory not found. Please deploy OpenRAG first.'; fi" --become-user="\$(whoami)"
+    run_service_command "logs" "if [ -d /home/\$(whoami)/openrag ]; then cd /home/\$(whoami)/openrag && docker compose logs -f $SERVICE; else echo 'OpenRAG directory not found. Please deploy OpenRAG first.'; fi" "Showing OpenRAG logs..."
 }
 
 update_deployment() {
     print_header "Updating OpenRAG deployment..."
     
-    INVENTORY="inventory.ini"
-    PLAYBOOK="playbook.yml"
+    echo ""
+    echo "Select update method:"
+    echo "  1) Update only OpenRAG application (git pull + rebuild)"
+    echo "  2) Full system update (re-run entire deployment)"
+    echo ""
+    read -p "Enter your choice (1 or 2): " update_choice
     
-    # Check if OpenRAG directory exists before trying to update
-    ansible all -i "$INVENTORY" -m shell -a "if [ -d /home/\$(whoami)/openrag ]; then cd /home/\$(whoami)/openrag && git pull origin main && docker compose down && docker compose build && docker compose up -d; else echo 'OpenRAG directory not found. Please deploy OpenRAG first using option 1 or 2.'; fi" --become-user="\$(whoami)"
+    case $update_choice in
+        1)
+            print_status "Updating OpenRAG application only..."
+            run_service_command "update" "if [ -d /home/\$(whoami)/openrag ]; then cd /home/\$(whoami)/openrag && git pull origin main && docker compose down && docker compose build && docker compose up -d; else echo 'OpenRAG directory not found. Please deploy OpenRAG first using option 1 or 2.'; fi" "Updating OpenRAG application..."
+            ;;
+        2)
+            print_status "Running full system update..."
+            check_inventory
+            ansible-playbook -i "$INVENTORY_FILE" "$MAIN_PLAYBOOK" --ask-become-pass
+            ;;
+        *)
+            print_error "Invalid choice. Please select 1 or 2."
+            ;;
+    esac
 }
 
 remove_all() {
@@ -201,13 +278,11 @@ remove_all() {
         return
     fi
     
-    INVENTORY="inventory.ini"
-    
     print_status "Starting complete removal process..."
     
     # Stop and remove all Docker containers and images
     print_status "Stopping and removing Docker containers and images..."
-    ansible all -i "$INVENTORY" -m shell -a "
+    ansible all -i "$INVENTORY_FILE" -m shell -a "
         # Stop all Docker containers
         if command -v docker &> /dev/null; then
             docker stop \$(docker ps -aq) 2>/dev/null || true
@@ -215,11 +290,11 @@ remove_all() {
             docker system prune -af --volumes 2>/dev/null || true
             docker image prune -af 2>/dev/null || true
         fi
-    " --become
+    " --become --ask-become-pass
     
     # Remove OpenRAG directory
     print_status "Removing OpenRAG directory..."
-    ansible all -i "$INVENTORY" -m shell -a "
+    ansible all -i "$INVENTORY_FILE" -m shell -a "
         if [ -d /home/\$(whoami)/openrag ]; then
             rm -rf /home/\$(whoami)/openrag
             echo 'OpenRAG directory removed'
@@ -230,7 +305,7 @@ remove_all() {
     
     # Remove Docker and Docker Compose
     print_status "Removing Docker and Docker Compose..."
-    ansible all -i "$INVENTORY" -m shell -a "
+    ansible all -i "$INVENTORY_FILE" -m shell -a "
         # Detect package manager and remove Docker accordingly
         if command -v apt &> /dev/null; then
             # Ubuntu/Debian
@@ -253,11 +328,11 @@ remove_all() {
             echo 'Unknown package manager. Please remove Docker manually.'
         fi
         echo 'Docker removal completed'
-    " --become
+    " --become --ask-become-pass
     
     # Remove NVIDIA Container Toolkit
     print_status "Removing NVIDIA Container Toolkit..."
-    ansible all -i "$INVENTORY" -m shell -a "
+    ansible all -i "$INVENTORY_FILE" -m shell -a "
         if command -v apt &> /dev/null; then
             # Ubuntu/Debian
             apt-get remove -y nvidia-container-toolkit nvidia-container-runtime nvidia-docker2 2>/dev/null || true
@@ -270,11 +345,11 @@ remove_all() {
             yum remove -y nvidia-container-toolkit nvidia-container-runtime nvidia-docker2 2>/dev/null || true
         fi
         echo 'NVIDIA Container Toolkit removal completed'
-    " --become
+    " --become --ask-become-pass
     
     # Remove NVIDIA drivers
     print_status "Removing NVIDIA drivers..."
-    ansible all -i "$INVENTORY" -m shell -a "
+    ansible all -i "$INVENTORY_FILE" -m shell -a "
         if command -v nvidia-uninstall &> /dev/null; then
             # If NVIDIA installer was used
             nvidia-uninstall --silent 2>/dev/null || true
@@ -298,11 +373,11 @@ remove_all() {
         rm -rf /usr/share/X11/xorg.conf.d/*nvidia* 2>/dev/null || true
         
         echo 'NVIDIA drivers removal completed'
-    " --become
+    " --become --ask-become-pass
     
     # Clean up package caches and repositories
     print_status "Cleaning up package caches and repositories..."
-    ansible all -i "$INVENTORY" -m shell -a "
+    ansible all -i "$INVENTORY_FILE" -m shell -a "
         if command -v apt &> /dev/null; then
             # Remove NVIDIA and Docker repositories
             rm -f /etc/apt/sources.list.d/nvidia-container-toolkit.list 2>/dev/null || true
@@ -324,7 +399,7 @@ remove_all() {
             yum clean all 2>/dev/null || true
         fi
         echo 'Cleanup completed'
-    " --become
+    " --become --ask-become-pass
     
     print_status "Complete removal finished!"
     print_warning "You may need to reboot the system to complete the NVIDIA driver removal."
@@ -335,17 +410,28 @@ remove_all() {
 # ------------------------------ Main Menu ------------------------------
 show_menu() {
     print_header "OpenRAG Ansible Deployment Tool"
-    echo "1) Deploy to local machine"
-    echo "2) Deploy remotely"
-    echo "3) Check deployment status"
-    echo "4) Stop services"
-    echo "5) Start services"
-    echo "6) Show logs"
-    echo "7) Update deployment"
-    echo "8) Remove all (OpenRAG, Docker, NVIDIA drivers)"
-    echo "9) Exit"
+    echo "=== Full Deployment ==="
+    echo "1) Deploy to local machine (full installation)"
+    echo "2) Deploy remotely (full installation)"
     echo ""
-    read -p "Choose an option [1-9]: " choice
+    echo "=== Modular Deployment ==="
+    echo "3) Install NVIDIA drivers and toolkit only"
+    echo "4) Install Docker only"
+    echo "5) Deploy OpenRAG application only"
+    echo ""
+    echo "=== Management ==="
+    echo "6) Check deployment status"
+    echo "7) Stop services"
+    echo "8) Start services"
+    echo "9) Show logs"
+    echo "10) Update deployment"
+    echo "11) Remove all (OpenRAG, Docker, NVIDIA drivers)"
+    echo ""
+    echo "=== Information ==="
+    echo "12) Show playbook information"
+    echo "13) Exit"
+    echo ""
+    read -p "Choose an option [1-13]: " choice
 }
 
 main() {
@@ -363,31 +449,43 @@ main() {
                     deploy_remote
                     ;;
                 3)
-                    check_status
+                    deploy_nvidia_only
                     ;;
                 4)
-                    stop_services
+                    deploy_docker_only
                     ;;
                 5)
-                    start_services
+                    deploy_openrag_only
                     ;;
                 6)
+                    check_status
+                    ;;
+                7)
+                    stop_services
+                    ;;
+                8)
+                    start_services
+                    ;;
+                9)
                     echo "Enter service name (default: openrag):"
                     read service_name
                     show_logs "$service_name"
                     ;;
-                7)
+                10)
                     update_deployment
                     ;;
-                8)
+                11)
                     remove_all
                     ;;
-                9)
+                12)
+                    show_playbook_info
+                    ;;
+                13)
                     print_status "Goodbye!"
                     exit 0
                     ;;
                 *)
-                    print_error "Invalid option. Please choose 1-9."
+                    print_error "Invalid option. Please choose 1-13."
                     ;;
             esac
             echo ""
@@ -400,6 +498,15 @@ main() {
                 ;;
             "deploy-remote")
                 deploy_remote
+                ;;
+            "deploy-nvidia")
+                deploy_nvidia_only
+                ;;
+            "deploy-docker")
+                deploy_docker_only
+                ;;
+            "deploy-openrag")
+                deploy_openrag_only
                 ;;
             "status")
                 check_status
@@ -419,8 +526,11 @@ main() {
             "remove-all")
                 remove_all
                 ;;
+            "info")
+                show_playbook_info
+                ;;
             *)
-                echo "Usage: $0 [deploy-local|deploy-remote|status|stop|start|logs [service]|update|remove-all]"
+                echo "Usage: $0 [deploy-local|deploy-remote|deploy-nvidia|deploy-docker|deploy-openrag|status|stop|start|logs [service]|update|remove-all|info]"
                 exit 1
                 ;;
         esac

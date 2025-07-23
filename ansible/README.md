@@ -1,5 +1,9 @@
 # OpenRAG Ansible Deployment
 
+> **📝 Note**: This repository now uses **modular playbooks** for better organization and flexibility. 
+> All playbooks have been moved to the `playbooks/` directory.
+> For detailed information about the modular approach, see [README-modular.md](README-modular.md).
+
 This directory contains Ansible playbooks and scripts to automatically set up the OpenRAG environment on one or more servers.
 
 These scripts are designed for installation on fresh production servers.
