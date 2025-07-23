@@ -56,11 +56,7 @@ class BaseLoader(ABC):
         """Convert PIL Image to base64 string."""
         buffered = BytesIO()
         # Determine format based on image mode or use PNG as default
-        format_type = "PNG"
-        if hasattr(image, "format") and image.format:
-            format_type = image.format
-
-        image.save(buffered, format=format_type)
+        image.save(buffered, format="PNG")
         return base64.b64encode(buffered.getvalue()).decode()
 
     def _is_http_url(self, data: str) -> bool:
@@ -93,6 +89,7 @@ class BaseLoader(ABC):
             try:
                 # Determine the type of image data and create appropriate message content
                 if isinstance(image_data, Image.Image):
+                    # logger.info("Processing PIL Image", img_size=str(image_data.size))
                     # Handle PIL Image
                     width, height = image_data.size
 
@@ -104,7 +101,6 @@ class BaseLoader(ABC):
                         logger.debug(
                             f"Image too small: {width}x{height}, skipping description"
                         )
-                        return f"""\n<image_description>\nImage too small ({width}x{height})\n</image_description>\n"""
 
                     # Convert PIL Image to base64
                     img_b64 = self._pil_image_to_base64(image_data)

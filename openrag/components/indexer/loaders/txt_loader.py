@@ -117,5 +117,5 @@ class MarkdownLoader(BaseLoader):
 
         doc = Document(page_content=content, metadata=metadata)
         if save_markdown:
-            self.save_document(doc=doc, file_path=path)
+            self.save_document(doc=doc, path=path)
         return doc
