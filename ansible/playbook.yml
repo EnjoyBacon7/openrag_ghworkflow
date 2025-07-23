@@ -1,4 +1,29 @@
 ---
+# OpenRAG Ansible Playbook
+#
+# Global Installation Control Variables:
+# - enable_install_docker: Set to false to skip Docker installation if already installed
+# - enable_install_nvidia_drivers: Set to false to skip NVIDIA driver installation if version matches
+# - enable_install_nvidia_toolkit: Set to false to skip NVIDIA Container Toolkit installation if already installed
+#
+# Usage: ansible-playbook playbook.yml -e "enable_install_docker=false enable_install_nvidia_drivers=false"
+
+# Global configuration variables
+- name: Set global variables
+  hosts: all
+  vars:
+    # Installation control flags - set to false to skip installation
+    enable_install_docker: true
+    enable_install_nvidia_drivers: true
+    enable_install_nvidia_toolkit: true
+  tasks:
+    - name: Set global installation control variables
+      set_fact:
+        enable_install_docker: "{{ enable_install_docker }}"
+        enable_install_nvidia_drivers: "{{ enable_install_nvidia_drivers }}"
+        enable_install_nvidia_toolkit: "{{ enable_install_nvidia_toolkit }}"
+        cacheable: true
+
 # GPU-enabled servers setup
 - name: Setup OpenRAG Environment (GPU-enabled)
   hosts: gpu_servers
@@ -102,6 +127,10 @@
         nvidia_version_matches: false
       when: current_nvidia_version.stdout == "not_installed"
 
+    - name: Check if NVIDIA driver installation is needed
+      set_fact:
+        nvidia_installation_needed: "{{ enable_install_nvidia_drivers and not nvidia_version_matches }}"
+
     - name: Add NVIDIA package repository
       block:
         - name: Remove all NVIDIA and CUDA related packages
@@ -137,7 +166,7 @@
         - name: Update apt cache after adding NVIDIA repo
           apt:
             update_cache: true
-      when: not nvidia_version_matches
+      when: nvidia_installation_needed
 
     - name: Install NVIDIA drivers (without CUDA toolkit)
       block:
@@ -163,7 +192,7 @@
             apt-get install -y nvidia-driver-535-server nvidia-utils-535-server
           when: nvidia_basic_install.failed
           ignore_errors: true
-      when: not nvidia_version_matches
+      when: nvidia_installation_needed
 
     - name: Check NVIDIA driver status and handle reboot if needed
       block:
@@ -184,7 +213,7 @@
             reboot_timeout: 300
             connect_timeout: 30
           when:
-            - not nvidia_version_matches
+            - nvidia_installation_needed
             - "'Driver/library version mismatch' in nvidia_output.stdout"
 
         - name: Wait for system to come back online after reboot
@@ -192,7 +221,7 @@
             delay: 30
             timeout: 300
           when:
-            - not nvidia_version_matches
+            - nvidia_installation_needed
             - "'Driver/library version mismatch' in nvidia_output.stdout"
 
         - name: Final NVIDIA driver verification
@@ -223,7 +252,7 @@
 
     - name: Check if Docker installation is needed
       set_fact:
-        docker_installation_needed: "{{ docker_ce_version == 'latest' or current_docker_version.stdout == 'not_installed' or current_docker_version.stdout != docker_ce_version }}"
+        docker_installation_needed: "{{ enable_install_docker and (docker_ce_version == 'latest' or current_docker_version.stdout == 'not_installed' or current_docker_version.stdout != docker_ce_version) }}"
 
     - name: Clean Docker installation (if needed)
       block:
@@ -329,7 +358,7 @@
 
     - name: Check if NVIDIA Container Toolkit installation is needed
       set_fact:
-        nvidia_ctk_installation_needed: "{{ current_nvidia_ctk_version.stdout == 'not_installed' or current_nvidia_ctk_version.stdout != nvidia_container_toolkit_version.split('-')[0] }}"
+        nvidia_ctk_installation_needed: "{{ enable_install_nvidia_toolkit and (current_nvidia_ctk_version.stdout == 'not_installed' or current_nvidia_ctk_version.stdout != nvidia_container_toolkit_version.split('-')[0]) }}"
 
     - name: Clean NVIDIA Container Toolkit installation (if needed)
       block:
@@ -618,63 +647,78 @@
         name: "{{ common_packages }}"
         state: present
 
-    - name: Install Docker
+    # ========== DOCKER INSTALLATION ==========
+    - name: Check current Docker version
+      shell: |
+        if command -v docker >/dev/null 2>&1; then
+          docker --version | grep -oP 'Docker version \K[0-9]+\.[0-9]+\.[0-9]+'
+        else
+          echo "not_installed"
+        fi
+      register: current_docker_version
+      failed_when: false
+      changed_when: false
+
+    - name: Display current Docker status
+      debug:
+        msg: "Current Docker: {{ current_docker_version.stdout | default('not detected') }}, Required: {{ docker_ce_version }}"
+
+    - name: Check if Docker installation is needed
+      set_fact:
+        docker_installation_needed: "{{ enable_install_docker and (docker_ce_version == 'latest' or current_docker_version.stdout == 'not_installed' or current_docker_version.stdout != docker_ce_version) }}"
+
+    - name: Clean Docker installation (if needed)
       block:
-        - name: Completely remove Docker and repository configurations
-          block:
-            - name: Uninstall old Docker versions
-              apt:
-                name:
-                  - docker.io
-                  - docker-doc
-                  - docker-compose
-                  - docker-compose-v2
-                  - podman-docker
-                  - containerd
-                  - runc
-                  - docker-ce
-                  - docker-ce-cli
-                state: absent
-                purge: true
-              ignore_errors: true
-
-            - name: Remove all Docker-related repository and key files
-              file:
-                path: "{{ item }}"
-                state: absent
-              loop:
-                - /etc/apt/sources.list.d/docker.list
-                - /etc/apt/sources.list.d/docker.list.save
-                - /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
-                - /usr/share/keyrings/docker-archive-keyring.gpg
-                - /etc/apt/keyrings/docker.gpg
-                - /etc/apt/keyrings/docker.asc
-                - /etc/apt/trusted.gpg.d/docker.gpg
-              ignore_errors: true
-
-            - name: Clean any Docker references from main sources.list
-              shell: |
-                sed -i '/download.docker.com/d' /etc/apt/sources.list
-                sed -i '/docker/d' /etc/apt/sources.list
-              ignore_errors: true
-
-            - name: Remove Docker GPG keys from apt-key
-              shell: |
-                apt-key del 9DC858229FC7DD38854AE2D88D81803C0EBFCD88 2>/dev/null || true
-                apt-key del 0EBFCD88 2>/dev/null || true
-              ignore_errors: true
-
-            - name: Clean apt cache and update
-              apt:
-                update_cache: true
-                autoclean: true
-                autoremove: true
-
-        - name: Install Docker prerequisites
+        - name: Uninstall old Docker versions
           apt:
             name:
-              - ca-certificates
-              - curl
+              - docker.io
+              - docker-doc
+              - docker-compose
+              - docker-compose-v2
+              - podman-docker
+              - containerd
+              - runc
+              - docker-ce
+              - docker-ce-cli
+            state: absent
+            purge: true
+          ignore_errors: true
+
+        - name: Remove Docker repository and key files
+          file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /etc/apt/sources.list.d/docker.list
+            - /etc/apt/sources.list.d/docker.list.save
+            - /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
+            - /usr/share/keyrings/docker-archive-keyring.gpg
+            - /etc/apt/keyrings/docker.gpg
+            - /etc/apt/keyrings/docker.asc
+            - /etc/apt/trusted.gpg.d/docker.gpg
+          ignore_errors: true
+
+        - name: Clean Docker references and update cache
+          shell: |
+            sed -i '/download.docker.com/d' /etc/apt/sources.list
+            sed -i '/docker/d' /etc/apt/sources.list
+            apt-key del 9DC858229FC7DD38854AE2D88D81803C0EBFCD88 2>/dev/null || true
+            apt-key del 0EBFCD88 2>/dev/null || true
+          ignore_errors: true
+
+        - name: Update apt cache after cleanup
+          apt:
+            update_cache: true
+            autoclean: true
+            autoremove: true
+      when: docker_installation_needed
+
+    - name: Install Docker (if needed)
+      block:
+        - name: Install Docker prerequisites
+          apt:
+            name: [ca-certificates, curl]
             state: present
             update_cache: true
 
@@ -684,32 +728,30 @@
             state: directory
             mode: "0755"
 
-        - name: Add Docker's official GPG key
+        - name: Add Docker GPG key and repository
           shell: |
             curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
             chmod a+r /etc/apt/keyrings/docker.asc
-
-        - name: Add Docker repository to Apt sources
-          shell: |
             echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-        - name: Update apt cache and install Docker packages
+        - name: Update apt cache and install Docker
           apt:
             update_cache: true
             name: "{{ docker_packages }}"
             state: present
+      when: docker_installation_needed
 
-        - name: Start and enable Docker service
-          systemd:
-            name: docker
-            state: started
-            enabled: true
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: true
 
-        - name: Add user to docker group
-          user:
-            name: "{{ project_user }}"
-            groups: docker
-            append: true
+    - name: Add user to docker group
+      user:
+        name: "{{ project_user }}"
+        groups: docker
+        append: true
 
     # Project Setup
     - name: Create project directory
