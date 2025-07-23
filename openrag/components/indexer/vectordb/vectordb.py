@@ -12,18 +12,6 @@ from pymilvus import MilvusClient
 
 from .utils import PartitionFileManager
 
-INDEX_PARAMS = [
-    {
-        "metric_type": "BM25",
-        "index_type": "SPARSE_INVERTED_INDEX",
-    },  # For sparse vector
-    {
-        "metric_type": "COSINE",
-        "index_type": "HNSW",
-        "params": {"M": 32, "efConstruction": 100},
-    },  # For dense vector
-]
-
 
 class ABCVectorDB(ABC):
     """
@@ -32,7 +20,7 @@ class ABCVectorDB(ABC):
     """
 
     @abstractmethod
-    async def get_collections(self):
+    async def list_collections(self):
         pass
 
     @abstractmethod
@@ -74,11 +62,11 @@ class ABCVectorDB(ABC):
     def collection_exists(self, collection_name: str):
         pass
 
-    @abstractmethod
-    def sample_chunk_ids(
-        self, partition: str, n_ids: int = 100, seed: int | None = None
-    ):
-        pass
+    # @abstractmethod
+    # def sample_chunk_ids(
+    #     self, partition: str, n_ids: int = 100, seed: int | None = None
+    # ):
+    #     pass
 
     @abstractmethod
     def list_all_chunk(
@@ -95,45 +83,27 @@ class ABCVectorDB(ABC):
         pass
 
 
+# @ray.remote
+# class MilvusDB2(ABCVectorDB):
+#     pass
+
+#     def __init__(self):
+#         from config import load_config
+#         from utils.logger import get_logger
+
+#         self.config = load_config()
+#         self.logger = get_logger()
+
+#         self.embeddings = OpenAIEmbeddings(
+#             model=self.config.embedder.get("model_name"),
+#             base_url=self.config.embedder.get("base_url"),
+#             api_key=self.config.embedder.get("api_key"),
+#         )
+
+
 @ray.remote
 class MilvusDB(ABCVectorDB):
-    """
-    MilvusDB is a concrete class to interact with a Milvus database for vector storage and retrieval.
-    Attributes:
-        logger: Logger instance for logging information.
-        embeddings: Embeddings to be used for vector storage.
-        port: Port number of the Milvus server.
-        host: Host address of the Milvus server.
-        client: Milvus client instance.
-        sparse_embeddings: Sparse embeddings for hybrid mode.
-        index_params: Parameters for indexing.
-        default_collection_name: Default collection name.
-        _collection_name: Internal collection name.
-        vector_store: Vector store instance.
-    Methods:
-        collection_name: Property to get and set the collection name.
-        get_collections: Asynchronously get a list of collections.
-        async_search: Asynchronously search for documents based on a query.
-        async_multy_query_search: Asynchronously search for documents based on multiple queries.
-        async_add_documents: Asynchronously add documents to the collection.
-        get_file_points: Get points associated with a file from Milvus.
-        file_exists: Check if a file exists in the collection.
-        collection_exists: Check if a collection exists in Milvus.
-        delete_points: Delete points from Milvus.
-        uri: URI of the Milvus server.
-    """
-
     def __init__(self):
-        """
-        Initialize Milvus.
-
-        Args:
-            host (str): The host of the Milvus server.
-            port (int): The port of the Milvus server.
-            collection_name (str): The name of the collection in the Milvus database.
-            embeddings (list): The embeddings.
-        """
-
         from config import load_config
         from utils.logger import get_logger
 
@@ -145,14 +115,30 @@ class MilvusDB(ABCVectorDB):
             base_url=self.config.embedder.get("base_url"),
             api_key=self.config.embedder.get("api_key"),
         )
+
         self.port = self.config.vectordb.get("port")
         self.host = self.config.vectordb.get("host")
         self.uri = f"http://{self.host}:{self.port}"
         self.client = MilvusClient(uri=self.uri)
+
+        # hybrid search
         self.sparse_embeddings = None
         self.hybrid_mode = self.config.vectordb.get("hybrid_mode", True)
         if self.hybrid_mode:
             self.sparse_embeddings = BM25BuiltInFunction(enable_match=True)
+
+        # Index params
+        INDEX_PARAMS = [
+            {
+                "metric_type": "BM25",
+                "index_type": "SPARSE_INVERTED_INDEX",
+            },  # For sparse vector
+            {
+                "metric_type": "COSINE",
+                "index_type": "HNSW",
+                "params": {"M": 128, "efConstruction": 256},
+            },  # For dense vector
+        ]
 
         index_params = None
         if self.hybrid_mode:
@@ -161,22 +147,19 @@ class MilvusDB(ABCVectorDB):
             index_params = {"metric_type": "COSINE", "index_type": "FLAT"}
 
         self.index_params = index_params
-        # Initialize collection-related attributes
-        self.default_collection_name = None
-        self._collection_name = None
-        self.vector_store = None
+
+        # partition related params
         self.partition_file_manager: PartitionFileManager = None
-        self.default_partition = "_default"
         self.rdb_host = self.config.rdb.host
         self.rdb_port = self.config.rdb.port
         self.rdb_user = self.config.rdb.user
         self.rdb_password = self.config.rdb.password
 
-        # Set the initial collection name (if provided)
+        # Initialize collection-related attributes
+        self._collection_name = None
+        self.vector_store = None
         collection_name = self.config.vectordb.collection_name
-        if collection_name:
-            self.default_collection_name = collection_name
-            self.collection_name = collection_name
+        self.collection_name = collection_name
 
     @property
     def collection_name(self):
@@ -185,9 +168,7 @@ class MilvusDB(ABCVectorDB):
     @collection_name.setter
     def collection_name(self, name: str):
         if not name:
-            if self.default_collection_name is None:
-                raise ValueError("Collection name cannot be empty.")
-            name = self.default_collection_name
+            raise ValueError("Collection name cannot be empty.")
 
         self.vector_store = Milvus(
             connection_args={"uri": self.uri},
@@ -210,13 +191,32 @@ class MilvusDB(ABCVectorDB):
 
         self.logger = self.logger.bind(collection=name)
         self.logger.info("Milvus collection loaded.")
-
-        if self.default_collection_name is None:
-            self.default_collection_name = name
-            self.logger.info(f"Default collection name set to `{name}`.")
         self._collection_name = name
 
-    async def get_collections(self) -> list[str]:
+        # self.__add_inverted_indexes()
+
+    def __add_inverted_indexes(self):
+        """Add inverted indexes to the collection. Useful for frequent filter queries: (file_id, partition)."""
+
+        index_params = self.client.prepare_index_params()
+
+        index_params.add_index(
+            field_name="partition", index_type="INVERTED", index_name="partition_idx"
+        )
+
+        index_params.add_index(
+            field_name="file_id",
+            index_type="INVERTED",
+            index_name="file_id_idx",
+        )
+
+        self.client.create_index(
+            collection_name=self.collection_name,
+            index_params=index_params,
+            sync=True,
+        )
+
+    async def list_collections(self) -> list[str]:
         return self.client.list_collections()
 
     async def async_search(
@@ -227,25 +227,9 @@ class MilvusDB(ABCVectorDB):
         similarity_threshold: int = 0.80,
         filter: Optional[dict] = {},
     ) -> list[Document]:
-        """
-        Perform an asynchronous search on the vector store with a given query.
-
-        Args:
-            query (str): The search query string.
-            top_k (int, optional): The number of top results to return. Defaults to 5.
-            similarity_threshold (int, optional): The minimum similarity score threshold for results. Defaults to 0.80.
-            collection_name (Optional[str], optional): The name of the collection to search in. If None, the default collection name is used. Defaults to None.
-
-        Returns:
-            list[Document]: A list of documents that match the search query.
-
-        Raises:
-            ValueError: If no collection name is provided and no default collection name is set.
-            ValueError: If the specified collection does not exist.
-        """
+        """Perform a search in the vector database."""
 
         expr_parts = []
-
         if partition != ["all"]:
             expr_parts.append(f"partition in {partition}")
 
@@ -254,12 +238,12 @@ class MilvusDB(ABCVectorDB):
 
         # Join all parts with " and " only if there are multiple conditions
         expr = " and ".join(expr_parts) if expr_parts else ""
-
+        fetch_k = 64
         SEARCH_PARAMS = [
             {
                 "metric_type": "COSINE",
                 "params": {
-                    "ef": 20,
+                    "ef": fetch_k,
                     "radius": similarity_threshold,
                     "range_filter": 1.0,
                 },
@@ -267,13 +251,11 @@ class MilvusDB(ABCVectorDB):
             {"metric_type": "BM25", "params": {"drop_ratio_build": 0.2}},
         ]
 
-        # "params": {"drop_ratio_build": 0.2, "bm25_k1": 1.2, "bm25_b": 0.75},
-
         if self.hybrid_mode:
             docs_scores = await self.vector_store.asimilarity_search_with_score(
                 query=query,
                 k=top_k,
-                fetch_k=top_k,
+                fetch_k=fetch_k,
                 ranker_type="rrf",
                 ranker_params={"k": 100},
                 expr=expr,
@@ -293,7 +275,6 @@ class MilvusDB(ABCVectorDB):
             doc.metadata["score"] = score
 
         docs = [doc for doc, score in docs_scores]
-
         return docs
 
     async def async_multy_query_search(
@@ -352,8 +333,11 @@ class MilvusDB(ABCVectorDB):
                 file_id=file_id, partition=partition
             )
             if res:
+                self.logger.error(
+                    f"This File ({file_id}) already exists in Partition ({partition})"
+                )
                 raise ValueError(
-                    f"No Insertion: This File ({file_id}) already exists in Partition ({partition})"
+                    f"This File ({file_id}) already exists in Partition ({partition})"
                 )
 
             await self.vector_store.aadd_documents(chunks)
@@ -367,7 +351,7 @@ class MilvusDB(ABCVectorDB):
             self.logger.exception(
                 "Error while adding documents to Milvus", error=str(e)
             )
-            raise e
+            raise
 
     def get_file_points(self, file_id: str, partition: str, limit: int = 100):
         """
@@ -592,52 +576,6 @@ class MilvusDB(ABCVectorDB):
             )
             return False
 
-    def sample_chunk_ids(
-        self, partition: str, n_ids: int = 100, seed: int | None = None
-    ):
-        """
-        Sample chunk IDs from a given partition."""
-
-        try:
-            if not self.partition_file_manager.partition_exists(partition):
-                return []
-
-            file_ids = self.partition_file_manager.sample_file_ids(
-                partition=partition, n_file_id=10_000
-            )
-            if not file_ids:
-                return []
-
-            # Create a filter expression for the query
-            filter_expression = f"partition == '{partition}' and file_id in {file_ids}"
-
-            ids = []
-            iterator = self.client.query_iterator(
-                collection_name=self.collection_name,
-                filter=filter_expression,
-                batch_size=16000,
-                output_fields=["_id"],
-            )
-
-            ids = []
-            while True:
-                result = iterator.next()
-                if not result:
-                    iterator.close()
-                    break
-
-                ids.extend([res["_id"] for res in result])
-
-            random.seed(seed)
-            sampled_ids = random.sample(ids, min(n_ids, len(ids)))
-            return sampled_ids
-
-        except Exception as e:
-            self.logger.exception(
-                f"Error in `sample_chunks` for partition {partition}: {e}"
-            )
-            raise e
-
     def list_all_chunk(self, partition: str, include_embedding: bool = True):
         """
         List all chunk from a given partition.
@@ -692,6 +630,52 @@ class MilvusDB(ABCVectorDB):
                 f"Error in `list_chunk_ids` for partition {partition}: {e}"
             )
             raise
+
+    # def sample_chunk_ids(
+    #     self, partition: str, n_ids: int = 100, seed: int | None = None
+    # ):
+    #     """
+    #     Sample chunk IDs from a given partition."""
+
+    #     try:
+    #         if not self.partition_file_manager.partition_exists(partition):
+    #             return []
+
+    #         file_ids = self.partition_file_manager.sample_file_ids(
+    #             partition=partition, n_file_id=10_000
+    #         )
+    #         if not file_ids:
+    #             return []
+
+    #         # Create a filter expression for the query
+    #         filter_expression = f"partition == '{partition}' and file_id in {file_ids}"
+
+    #         ids = []
+    #         iterator = self.client.query_iterator(
+    #             collection_name=self.collection_name,
+    #             filter=filter_expression,
+    #             batch_size=16000,
+    #             output_fields=["_id"],
+    #         )
+
+    #         ids = []
+    #         while True:
+    #             result = iterator.next()
+    #             if not result:
+    #                 iterator.close()
+    #                 break
+
+    #             ids.extend([res["_id"] for res in result])
+
+    #         random.seed(seed)
+    #         sampled_ids = random.sample(ids, min(n_ids, len(ids)))
+    #         return sampled_ids
+
+    #     except Exception as e:
+    #         self.logger.exception(
+    #             f"Error in `sample_chunks` for partition {partition}: {e}"
+    #         )
+    #         raise e
 
 
 # class QdrantDB(ABCVectorDB):
@@ -1008,30 +992,18 @@ class MilvusDB(ABCVectorDB):
 
 
 class ConnectorFactory:
-    CONNECTORS = {
+    CONNECTORS: dict[ABCVectorDB] = {
         "milvus": MilvusDB,
         # "qdrant": QdrantDB,
     }
 
     @staticmethod
-    def create_vdb(config, logger, embeddings) -> ABCVectorDB:
-        if not config["vectordb"]["enable"]:
-            logger.info("Vector database is not enabled. Skipping initialization.")
-            return None
+    def get_vectordb_cls():
+        from config import load_config
 
-        # Extract parameters
-        dbconfig = dict(config.vectordb)
-        name = dbconfig.pop("connector_name")
-        dbconfig.pop("enable")
+        config = load_config()
+        name = config.vectordb.get("connector_name")
         vdb_cls = ConnectorFactory.CONNECTORS.get(name)
         if not vdb_cls:
             raise ValueError(f"VECTORDB '{name}' is not supported.")
-
-        dbconfig["embeddings"] = embeddings
-        dbconfig["logger"] = logger
-        dbconfig["rdb_host"] = "rdb"
-        dbconfig["rdb_port"] = config["rdb"].port
-        dbconfig["rdb_user"] = config["rdb"].user
-        dbconfig["rdb_password"] = config["rdb"].password
-
-        return vdb_cls(**dbconfig)
+        return vdb_cls

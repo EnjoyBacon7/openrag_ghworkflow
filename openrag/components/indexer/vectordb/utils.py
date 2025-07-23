@@ -62,7 +62,9 @@ class File(Base):
     )
 
     def to_dict(self):
-        return self.file_metadata or {}
+        metadata = self.file_metadata or {}
+        d = {"partition": self.partition_name, "file_id": self.file_id, **metadata}
+        return d
 
     def __repr__(self):
         return f"<File(id={self.id}, file_id='{self.file_id}', partition='{self.partition}')>"
@@ -116,23 +118,6 @@ class PartitionFileManager:
             else:
                 log.warning("No partition found")
                 return {}
-
-    # def create_partition(self, partition: str):
-    #     """Create a new partition if it doesn't exist"""
-    #     with self.Session() as session:
-    #         try:
-    #             partition = (
-    #                 session.query(Partition).filter_by(partition=partition).first()
-    #             )
-    #             if not partition:
-    #                 partition = Partition(partition=partition)
-    #                 session.add(partition)
-    #                 session.commit()
-    #                 self.logger.info(f"Created new partition with key: {partition}")
-    #             return partition
-    #         except Exception as e:
-    #             session.rollback()
-    #             raise e
 
     def add_file_to_partition(
         self, file_id: str, partition: str, file_metadata: Optional[Dict] = None
