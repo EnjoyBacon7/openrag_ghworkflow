@@ -8,7 +8,6 @@ from langchain_core.documents.base import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-
 from langchain_text_splitters import (
     MarkdownHeaderTextSplitter,
     RecursiveCharacterTextSplitter,
@@ -237,19 +236,22 @@ class SemanticSplitter(BaseChunker):
         contextual_retrieval=False,
         embeddings: Optional[OpenAIEmbeddings] = None,
         breakpoint_threshold_amount: int = 85,
-        min_chunk_size: int = 200,
     ):
         super().__init__(
             chunk_size, chunk_overlap_rate, llm_config, contextual_retrieval
         )
         from langchain_experimental.text_splitter import SemanticChunker
 
+        min_chunk_size_chars = (
+            int(chunk_size * 0.5) * 4
+        )  # 1 token = 4 characters on average
+
         self.splitter = SemanticChunker(
             embeddings=embeddings,
             buffer_size=1,
             breakpoint_threshold_type="percentile",
             breakpoint_threshold_amount=breakpoint_threshold_amount,
-            min_chunk_size=min_chunk_size,
+            min_chunk_size=min_chunk_size_chars,
         )
 
         self.recursive_splitter = RecursiveCharacterTextSplitter(
