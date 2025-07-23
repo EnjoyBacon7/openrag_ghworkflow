@@ -92,7 +92,9 @@ class Indexer:
                 self.logger.exception(f"Task {task_id} failed with error: {e}")
                 raise
         else:
-            self.logger.warning(f"Timeout: cancelling task {task_id} after {timeout}s")
+            self.logger.warning(
+                f"Timeout: cancelling task {task_id} after {self.serialize_timeout}s"
+            )
             ray.cancel(future, recursive=True)
             raise TimeoutError(
                 f"Serialization task {task_id} timed out after {self.serialize_timeout} seconds"
