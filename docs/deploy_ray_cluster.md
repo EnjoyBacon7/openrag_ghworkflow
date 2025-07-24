@@ -97,8 +97,12 @@ auth:
   ssh_user: ubuntu
   ssh_private_key: path/to/private/key # Replace with your actual ssh key path
 
-head_setup_commands:
-  - bash /app/ray-cluster/start_head.sh
+head_start_ray_commands:
+    - uv run ray stop
+    - uv run ray start --head --dashboard-host 0.0.0.0 --dashboard-port ${RAY_DASHBOARD_PORT:-8265} --node-ip-address ${HEAD_NODE_IP} --autoscaling-config=~/ray_bootstrap_config.yaml
+worker_start_ray_commands:
+    - uv run ray stop
+    - uv run ray start --address ${HEAD_NODE_IP:-10.0.0.1}:6379
 ```
 
 > 🛠️ The base image (`ghcr.io/linagora/openrag-ray`) must be built from `Dockerfile.ray` and pushed to a container registry before use.
@@ -106,29 +110,8 @@ head_setup_commands:
 ### ⬆️ Launch the cluster
 
 ```bash
-uv run ray up cluster.yaml
+uv run ray up -y cluster.yaml
 ```
-
-### ➕ Join the cluster from worker nodes
-
-Run this on each worker node to start the Ray container:
-
-```bash
-docker run --rm -d \
-  --gpus all \
-  --network host \
-  --env-file /ray_mount/.env \
-  -v /ray_mount/model_weights:/app/model_weights \
-  -v /ray_mount/data:/app/data \
-  -v /ray_mount/.hydra_config:/app/.hydra_config \
-  -v /ray_mount/logs:/app/logs \
-  --shm-size=10.24g
-  --name ray_node_worker \
-  ghcr.io/linagora/openrag-ray \
-  bash /app/ray-cluster/start_worker.sh
-```
-
----
 
 ## 🐳 4. Launch the OpenRAG App
 

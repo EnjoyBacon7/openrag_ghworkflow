@@ -19,5 +19,9 @@ auth:
   ssh_user: ubuntu
   ssh_private_key: <path/to/private/key>
 
-head_setup_commands:
-    - bash /app/ray-cluster/start_head.sh
+head_start_ray_commands:
+    - uv run ray stop
+    - uv run ray start --head --dashboard-host 0.0.0.0 --dashboard-port ${RAY_DASHBOARD_PORT:-8265} --node-ip-address ${HEAD_NODE_IP} --autoscaling-config=~/ray_bootstrap_config.yaml
+worker_start_ray_commands:
+    - uv run ray stop
+    - uv run ray start --address ${HEAD_NODE_IP:-10.0.0.1}:6379

@@ -39,8 +39,6 @@ RUN pip3 install uv && \
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-COPY ray-cluster/ /app/ray-cluster/
-
 # Set workdir for source code
 WORKDIR /app/openrag
 
