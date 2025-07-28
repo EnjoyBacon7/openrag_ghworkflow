@@ -25,6 +25,10 @@ ENV HF_HUB_CACHE=${HF_HUB_CACHE:-/app/model_weights/hub}
 # Set workdir for uv
 WORKDIR /app
 
+# Accept build argument for version
+ARG SETUPTOOLS_SCM_PRETEND_VERSION
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}
+
 # Install uv & setup venv
 COPY pyproject.toml uv.lock ./
 RUN pip3 install uv && \
