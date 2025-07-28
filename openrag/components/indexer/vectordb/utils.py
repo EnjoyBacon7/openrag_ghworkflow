@@ -3,11 +3,11 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 from sqlalchemy import (
+    JSON,
     Column,
     DateTime,
     ForeignKey,
     Integer,
-    JSON,
     String,
     UniqueConstraint,
     create_engine,
@@ -16,6 +16,10 @@ from sqlalchemy.orm import (
     declarative_base,
     relationship,
     sessionmaker,
+)
+from sqlalchemy_utils import (
+    create_database,
+    database_exists,
 )
 from utils.logger import get_logger
 
@@ -91,6 +95,9 @@ class Partition(Base):
 class PartitionFileManager:
     def __init__(self, database_url: str, logger=logger):
         self.engine = create_engine(database_url)
+        if not database_exists(database_url):
+            create_database(database_url)
+
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
         self.logger = logger
@@ -160,6 +167,7 @@ class PartitionFileManager:
                     partition_name=partition_obj.partition,
                     file_metadata=file_metadata,
                 )
+
                 session.add(file)
                 session.commit()
                 log.info("Added file successfully")

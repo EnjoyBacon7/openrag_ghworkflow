@@ -24,7 +24,7 @@ dependencies = [
     "spire-doc>=13.1.0",
     "markitdown>=0.0.2",
     "openai>=1.64.0",
-    "ray[default]>=2.43.0",
+    "ray[default]>=2.47.1",
     "langchain-qdrant>=0.2.0",
     "python-dotenv>=1.0.1",
     "pip>=25.0.1",
@@ -40,6 +40,8 @@ dependencies = [
     "umap-learn>=0.5.7",
     "eml-parser>=2.0.0",
     "psutil>=7.0.0",
+    "psycopg2",
+    "sqlalchemy_utils",
 ]
 
 [dependency-groups]

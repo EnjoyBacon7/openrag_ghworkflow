@@ -9,6 +9,7 @@ env_vars = dotenv_values(SHARED_ENV) if SHARED_ENV else {}
 env_vars["PYTHONPATH"] = "/app/openrag"
 
 
+
 ray.init(dashboard_host="0.0.0.0")
 
 
@@ -30,12 +31,14 @@ from routers.openai import router as openai_router
 from routers.partition import router as partition_router
 from routers.queue import router as queue_router
 from routers.search import router as search_router
-from utils.dependencies import vectordb
+from utils.dependencies import get_vectordb
 from utils.logger import get_logger
 
 logger = get_logger()
 config = load_config()
 DATA_DIR = Path(config.paths.data_dir)
+
+vectordb = get_vectordb()
 
 ragPipe = RagPipeline(config=config, vectordb=vectordb, logger=logger)
 
@@ -141,8 +144,6 @@ if WITH_OPENAI_API:
 if WITH_CHAINLIT_UI:
     # Mount the default front
     from chainlit.utils import mount_chainlit
-
-    # logger.debug("Mounting Chainlit UI")
 
     mount_chainlit(app, "./chainlit/app_front.py", path="/chainlit")
     app.include_router(

@@ -2473,6 +2473,99 @@ wheels = [
 ]
 
 [[package]]
+name = "openrag"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "aiopath" },
+    { name = "asyncpg" },
+    { name = "boto3" },
+    { name = "chainlit" },
+    { name = "chardet" },
+    { name = "docling" },
+    { name = "einops" },
+    { name = "eml-parser" },
+    { name = "hdbscan" },
+    { name = "hydra-core" },
+    { name = "infinity-client" },
+    { name = "langchain-community" },
+    { name = "langchain-core" },
+    { name = "langchain-experimental" },
+    { name = "langchain-huggingface" },
+    { name = "langchain-milvus" },
+    { name = "langchain-openai" },
+    { name = "langchain-qdrant" },
+    { name = "loguru" },
+    { name = "marker-pdf", version = "0.2.17", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
+    { name = "marker-pdf", version = "1.6.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin'" },
+    { name = "markitdown" },
+    { name = "openai" },
+    { name = "openai-whisper" },
+    { name = "pip" },
+    { name = "psutil" },
+    { name = "psycopg2" },
+    { name = "pydub" },
+    { name = "pymupdf4llm" },
+    { name = "python-dotenv" },
+    { name = "ray", extra = ["default"] },
+    { name = "robotframework" },
+    { name = "robotframework-requests" },
+    { name = "spire-doc" },
+    { name = "sqlalchemy-utils" },
+    { name = "torch", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
+    { name = "torch", version = "2.6.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin'" },
+    { name = "umap-learn" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiopath", specifier = ">=0.7.7" },
+    { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "boto3", specifier = ">=1.38.33" },
+    { name = "chainlit", specifier = ">=2.2.1" },
+    { name = "chardet", specifier = ">=5.2.0" },
+    { name = "docling", specifier = ">=2.24.0" },
+    { name = "einops", specifier = ">=0.8.1" },
+    { name = "eml-parser", specifier = ">=2.0.0" },
+    { name = "hdbscan", specifier = ">=0.8.40" },
+    { name = "hydra-core", specifier = ">=1.3.2" },
+    { name = "infinity-client", specifier = ">=0.0.76" },
+    { name = "langchain-community", specifier = ">=0.3.18" },
+    { name = "langchain-core", specifier = ">=0.3.39" },
+    { name = "langchain-experimental", specifier = ">=0.3.4" },
+    { name = "langchain-huggingface", specifier = ">=0.1.2" },
+    { name = "langchain-milvus", specifier = ">=0.1.8" },
+    { name = "langchain-openai", specifier = ">=0.3.7" },
+    { name = "langchain-qdrant", specifier = ">=0.2.0" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "marker-pdf", specifier = ">=0.2.17" },
+    { name = "markitdown", specifier = ">=0.0.2" },
+    { name = "openai", specifier = ">=1.64.0" },
+    { name = "openai-whisper", specifier = ">=20240930" },
+    { name = "pip", specifier = ">=25.0.1" },
+    { name = "psutil", specifier = ">=7.0.0" },
+    { name = "psycopg2" },
+    { name = "pydub", specifier = ">=0.25.1" },
+    { name = "pymupdf4llm", specifier = ">=0.0.17" },
+    { name = "python-dotenv", specifier = ">=1.0.1" },
+    { name = "ray", extras = ["default"], specifier = ">=2.47.1" },
+    { name = "robotframework", specifier = ">=7.2.2" },
+    { name = "robotframework-requests", specifier = ">=0.9.7" },
+    { name = "spire-doc", specifier = ">=13.1.0" },
+    { name = "sqlalchemy-utils" },
+    { name = "torch", specifier = ">=2.4.1" },
+    { name = "umap-learn", specifier = ">=0.5.7" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = ">=0.11.0" }]
+
+[[package]]
 name = "opentelemetry-api"
 version = "1.29.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2544,6 +2637,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ab/88/e70a2e9fbb1bddb1ab7b6d74fb02c68601bff5948292ce33464c84ee082e/opentelemetry_exporter_otlp_proto_http-1.29.0.tar.gz", hash = "sha256:b10d174e3189716f49d386d66361fbcf6f2b9ad81e05404acdee3f65c8214204", size = 15041 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/31/49/a1c3d24e8fe73b5f422e21b46c24aed3db7fd9427371c06442e7bdfe4d3b/opentelemetry_exporter_otlp_proto_http-1.29.0-py3-none-any.whl", hash = "sha256:b228bdc0f0cfab82eeea834a7f0ffdd2a258b26aa33d89fb426c29e8e934d9d0", size = 17217 },
+]
+
+[[package]]
+name = "opentelemetry-exporter-prometheus"
+version = "0.50b0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
+    { name = "prometheus-client" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/58/bc9bad8fdbb1ec4ef64a6d353eb3798479efbeb1df875f371c714ca6199f/opentelemetry_exporter_prometheus-0.50b0.tar.gz", hash = "sha256:5c5be644e959a0980919778a367d9603892128443489a5b2ced15c90e1733892", size = 14584 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/f0/2861ecd7f32166e574c0f1a36a19e6cfe8ffe8459d3f575ac7e618b805d2/opentelemetry_exporter_prometheus-0.50b0-py3-none-any.whl", hash = "sha256:b44561b44ada38a223b622425e5df71ef1e933b2777f7f399990c333b9464805", size = 12889 },
 ]
 
 [[package]]
@@ -2920,6 +3027,17 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/a2/709e0fe2f093556c17fbafda93ac032257242cabcc7ff3369e2cb76a97aa/psutil-7.0.0-cp36-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a5f098451abc2828f7dc6b58d44b532b22f2088f4999a937557b603ce72b1993", size = 279544 },
     { url = "https://files.pythonhosted.org/packages/50/e6/eecf58810b9d12e6427369784efe814a1eec0f492084ce8eb8f4d89d6d61/psutil-7.0.0-cp37-abi3-win32.whl", hash = "sha256:ba3fcef7523064a6c9da440fc4d6bd07da93ac726b5733c29027d7dc95b39d99", size = 241053 },
     { url = "https://files.pythonhosted.org/packages/50/1b/6921afe68c74868b4c9fa424dad3be35b095e16687989ebbb50ce4fceb7c/psutil-7.0.0-cp37-abi3-win_amd64.whl", hash = "sha256:4cf3d4eb1aa9b348dec30105c55cd9b7d4629285735a102beb4441e38db90553", size = 244885 },
+]
+
+[[package]]
+name = "psycopg2"
+version = "2.9.10"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/62/51/2007ea29e605957a17ac6357115d0c1a1b60c8c984951c19419b3474cdfd/psycopg2-2.9.10.tar.gz", hash = "sha256:12ec0b40b0273f95296233e8750441339298e6a572f7039da5b260e3c8b60e11", size = 385672 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3d/16/4623fad6076448df21c1a870c93a9774ad8a7b4dd1660223b59082dd8fec/psycopg2-2.9.10-cp312-cp312-win32.whl", hash = "sha256:65a63d7ab0e067e2cdb3cf266de39663203d38d6a8ed97f5ca0cb315c73fe067", size = 1025113 },
+    { url = "https://files.pythonhosted.org/packages/66/de/baed128ae0fc07460d9399d82e631ea31a1f171c0c4ae18f9808ac6759e3/psycopg2-2.9.10-cp312-cp312-win_amd64.whl", hash = "sha256:4a579d6243da40a7b3182e0430493dbd55950c493d8c68f4eec0b302f6bbf20e", size = 1163951 },
+    { url = "https://files.pythonhosted.org/packages/ae/49/a6cfc94a9c483b1fa401fbcb23aca7892f60c7269c5ffa2ac408364f80dc/psycopg2-2.9.10-cp313-cp313-win_amd64.whl", hash = "sha256:91fd603a2155da8d0cfcdbf8ab24a2d54bca72795b90d2a3ed2b6da8d979dee2", size = 2569060 },
 ]
 
 [[package]]
@@ -3397,95 +3515,6 @@ wheels = [
 ]
 
 [[package]]
-name = "openrag"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "aiopath" },
-    { name = "asyncpg" },
-    { name = "boto3" },
-    { name = "chainlit" },
-    { name = "chardet" },
-    { name = "docling" },
-    { name = "einops" },
-    { name = "eml-parser" },
-    { name = "hdbscan" },
-    { name = "hydra-core" },
-    { name = "infinity-client" },
-    { name = "langchain-community" },
-    { name = "langchain-core" },
-    { name = "langchain-experimental" },
-    { name = "langchain-huggingface" },
-    { name = "langchain-milvus" },
-    { name = "langchain-openai" },
-    { name = "langchain-qdrant" },
-    { name = "loguru" },
-    { name = "marker-pdf", version = "0.2.17", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "marker-pdf", version = "1.6.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin'" },
-    { name = "markitdown" },
-    { name = "openai" },
-    { name = "openai-whisper" },
-    { name = "pip" },
-    { name = "psutil" },
-    { name = "pydub" },
-    { name = "pymupdf4llm" },
-    { name = "python-dotenv" },
-    { name = "ray", extra = ["default"] },
-    { name = "robotframework" },
-    { name = "robotframework-requests" },
-    { name = "spire-doc" },
-    { name = "torch", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "torch", version = "2.6.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin'" },
-    { name = "umap-learn" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiopath", specifier = ">=0.7.7" },
-    { name = "asyncpg", specifier = ">=0.30.0" },
-    { name = "boto3", specifier = ">=1.38.33" },
-    { name = "chainlit", specifier = ">=2.2.1" },
-    { name = "chardet", specifier = ">=5.2.0" },
-    { name = "docling", specifier = ">=2.24.0" },
-    { name = "einops", specifier = ">=0.8.1" },
-    { name = "eml-parser", specifier = ">=2.0.0" },
-    { name = "hdbscan", specifier = ">=0.8.40" },
-    { name = "hydra-core", specifier = ">=1.3.2" },
-    { name = "infinity-client", specifier = ">=0.0.76" },
-    { name = "langchain-community", specifier = ">=0.3.18" },
-    { name = "langchain-core", specifier = ">=0.3.39" },
-    { name = "langchain-experimental", specifier = ">=0.3.4" },
-    { name = "langchain-huggingface", specifier = ">=0.1.2" },
-    { name = "langchain-milvus", specifier = ">=0.1.8" },
-    { name = "langchain-openai", specifier = ">=0.3.7" },
-    { name = "langchain-qdrant", specifier = ">=0.2.0" },
-    { name = "loguru", specifier = ">=0.7.3" },
-    { name = "marker-pdf", specifier = ">=0.2.17" },
-    { name = "markitdown", specifier = ">=0.0.2" },
-    { name = "openai", specifier = ">=1.64.0" },
-    { name = "openai-whisper", specifier = ">=20240930" },
-    { name = "pip", specifier = ">=25.0.1" },
-    { name = "psutil", specifier = ">=7.0.0" },
-    { name = "pydub", specifier = ">=0.25.1" },
-    { name = "pymupdf4llm", specifier = ">=0.0.17" },
-    { name = "python-dotenv", specifier = ">=1.0.1" },
-    { name = "ray", extras = ["default"], specifier = ">=2.43.0" },
-    { name = "robotframework", specifier = ">=7.2.2" },
-    { name = "robotframework-requests", specifier = ">=0.9.7" },
-    { name = "spire-doc", specifier = ">=13.1.0" },
-    { name = "torch", specifier = ">=2.4.1" },
-    { name = "umap-learn", specifier = ">=0.5.7" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.11.0" }]
-
-[[package]]
 name = "rapidfuzz"
 version = "3.12.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3525,13 +3554,11 @@ wheels = [
 
 [[package]]
 name = "ray"
-version = "2.43.0"
+version = "2.47.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "aiosignal" },
     { name = "click" },
     { name = "filelock" },
-    { name = "frozenlist" },
     { name = "jsonschema" },
     { name = "msgpack" },
     { name = "packaging" },
@@ -3540,11 +3567,15 @@ dependencies = [
     { name = "requests" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ed/f2/bafb73554f33bb9a84a3c02e7dee89c94bb06044a06db9d99e44cb2b2d2b/ray-2.43.0-cp312-cp312-macosx_10_15_x86_64.whl", hash = "sha256:5121fdf4bcbcb0fda3b9b71164dd6c8fcc79a2e258022a2a3957e401018913fb", size = 67858078 },
-    { url = "https://files.pythonhosted.org/packages/3a/02/9ba73313664a26072d92cf797cd1d17514b47444d6ffea32aa1d41707b54/ray-2.43.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:7f26f7b72da04c3c4422269c31b067abd15cb38424b7012d812ddfb2c77462ea", size = 65155290 },
-    { url = "https://files.pythonhosted.org/packages/84/f5/e567c655facc09df9a7cbe79eda8dc84465b83ca86b7092cd6c45461ce89/ray-2.43.0-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:73770d4c8a989730985ff2b4292129249e28c1e29e84589470c9ba1ae91ca832", size = 66871584 },
-    { url = "https://files.pythonhosted.org/packages/a1/52/99604614000eb5c12e46a3c423c3078494ce032451ac12d8a573cbffb710/ray-2.43.0-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:b45f478d29ce5df3fc19861df64fef9ed5c25f1e83fa10028d33fadefdeca095", size = 67783962 },
-    { url = "https://files.pythonhosted.org/packages/df/49/5663b8bf55dc85512783cb36fa8696bed552ed52e552c1ab8f410f5f1599/ray-2.43.0-cp312-cp312-win_amd64.whl", hash = "sha256:1c3a9880112a8d561280a34e8ef9471070f81ca467e08b669e5e77a85e173c9c", size = 25565643 },
+    { url = "https://files.pythonhosted.org/packages/96/d8/833edaf128fb5cdd53818d307bb93df75d943f32ecc5cb0d7b14981265e6/ray-2.47.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:322049c4546cf67e5efdad90c371c5508acbb193e5aaaf4038103c6c5ce1f578", size = 66091855 },
+    { url = "https://files.pythonhosted.org/packages/ce/fa/23640e58046c91fcc05edd04bd51dd3d6a44cd7b408faf5bb3528a24c13d/ray-2.47.1-cp312-cp312-macosx_12_0_x86_64.whl", hash = "sha256:e6d9c78e53ac89cabbc4056aecfec53c506c692e3132af9dae941d6180ef462f", size = 68512697 },
+    { url = "https://files.pythonhosted.org/packages/c5/32/6abf17053eb0ae720a2981a17e6b22797cc655782b603a707052b47f64eb/ray-2.47.1-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:cd4e7eb475487364b5209963b17cefedcb7fbd3a816fdb6def7ea533ebd72424", size = 67918881 },
+    { url = "https://files.pythonhosted.org/packages/5c/31/4545d03ed68eedf42b52e2a8705a584361e262640e145d6ab219ae33969c/ray-2.47.1-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:3eaeaeec3bbe2ca6493e530c30473d84b8580a7ac3256bb9183d8c63def5a92f", size = 68888167 },
+    { url = "https://files.pythonhosted.org/packages/94/f6/ed91383e0057ad9e3d9c45212a0c7edc5a9d24a2e46da0d55c8233df868c/ray-2.47.1-cp312-cp312-win_amd64.whl", hash = "sha256:601f23ba89918b7b3ffebf967328f7bdb605deaf8c103aad7820dc2722fe450c", size = 26164455 },
+    { url = "https://files.pythonhosted.org/packages/7b/85/4dbf9a126f080a1114ec7738d9274759c256ff2a1c21662b09123311bbf0/ray-2.47.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:8cd625d469ce15391e5f1f44ddf8dd30b2380f917603fa0172661229acb0011f", size = 66082130 },
+    { url = "https://files.pythonhosted.org/packages/5a/8e/e893176ca3c02a310bb962b287436508f5b61fd179a7283f37610c0e0087/ray-2.47.1-cp313-cp313-macosx_12_0_x86_64.whl", hash = "sha256:e578929f58b3f0c59c7544a96d864e26278238b755d13cd19ae798070c848e57", size = 68507369 },
+    { url = "https://files.pythonhosted.org/packages/0c/97/f36e8a19885d930ab0dbcb0b7b6706e630412336b08fa3312bcaaad818b7/ray-2.47.1-cp313-cp313-manylinux2014_aarch64.whl", hash = "sha256:d6ed6d182e25d6f77179dc77bc97a749c81765b13cb671a46db3203029389663", size = 67875541 },
+    { url = "https://files.pythonhosted.org/packages/52/60/83430886d17526f4757e298b77268533afeedc74ed934f911d522f191ef2/ray-2.47.1-cp313-cp313-manylinux2014_x86_64.whl", hash = "sha256:252a471e8afb918b105cdbffb4cbebb0143baad75a06c8ffcde27ac317579ccb", size = 68848558 },
 ]
 
 [package.optional-dependencies]
@@ -3554,6 +3585,9 @@ default = [
     { name = "colorful" },
     { name = "grpcio" },
     { name = "opencensus" },
+    { name = "opentelemetry-exporter-prometheus" },
+    { name = "opentelemetry-proto" },
+    { name = "opentelemetry-sdk" },
     { name = "prometheus-client" },
     { name = "py-spy" },
     { name = "pydantic" },
@@ -4128,6 +4162,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b2/27/17f143013aabbe1256dce19061eafdce0b0142465ce32168cdb9a18c04b1/SQLAlchemy-2.0.38-cp313-cp313-win32.whl", hash = "sha256:eae27ad7580529a427cfdd52c87abb2dfb15ce2b7a3e0fc29fbb63e2ed6f8120", size = 2073023 },
     { url = "https://files.pythonhosted.org/packages/e2/3e/259404b03c3ed2e7eee4c179e001a07d9b61070334be91124cf4ad32eec7/SQLAlchemy-2.0.38-cp313-cp313-win_amd64.whl", hash = "sha256:b335a7c958bc945e10c522c069cd6e5804f4ff20f9a744dd38e748eb602cbbda", size = 2096908 },
     { url = "https://files.pythonhosted.org/packages/aa/e4/592120713a314621c692211eba034d09becaf6bc8848fabc1dc2a54d8c16/SQLAlchemy-2.0.38-py3-none-any.whl", hash = "sha256:63178c675d4c80def39f1febd625a6333f44c0ba269edd8a468b156394b27753", size = 1896347 },
+]
+
+[[package]]
+name = "sqlalchemy-utils"
+version = "0.41.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "sqlalchemy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4d/bf/abfd5474cdd89ddd36dbbde9c6efba16bfa7f5448913eba946fed14729da/SQLAlchemy-Utils-0.41.2.tar.gz", hash = "sha256:bc599c8c3b3319e53ce6c5c3c471120bd325d0071fb6f38a10e924e3d07b9990", size = 138017 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d5/f0/dc4757b83ac1ab853cf222df8535ed73973e0c203d983982ba7b8bc60508/SQLAlchemy_Utils-0.41.2-py3-none-any.whl", hash = "sha256:85cf3842da2bf060760f955f8467b87983fb2e30f1764fd0e24a48307dc8ec6e", size = 93083 },
 ]
 
 [[package]]

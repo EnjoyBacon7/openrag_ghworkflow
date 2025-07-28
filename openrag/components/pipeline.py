@@ -107,6 +107,7 @@ class RagPipeline:
         self.contextualizer = AsyncOpenAI(
             base_url=config.vlm["base_url"], api_key=config.vlm["api_key"]
         )
+        self.max_contextualized_query_len = config.rag["max_contextualized_query_len"]
 
         self.map_reduce: RAGMapReduce = RAGMapReduce(config=config)
 
@@ -125,6 +126,9 @@ class RagPipeline:
 
                 params = dict(self.config.llm_params)
                 params.pop("max_retries")
+                params['max_completion_tokens'] = self.max_contextualized_query_len
+                params['extra_body'] = { "chat_template_kwargs": {"enable_thinking": False} }
+
                 response = await self.contextualizer.chat.completions.create(
                     model=self.config.vlm["model"],
                     messages=[
@@ -152,21 +156,24 @@ class RagPipeline:
             partition=partition, query=query
         )
 
-        if RAG_MAP_REDUCE:
-            context = "Extracted documents:\n"
-            relevant_docs = []
-            res = await self.map_reduce.map(query=query, chunks=docs)
-            for synthesis, doc in res:
-                context += synthesis + "\n"
-                context += "-" * 40 + "\n"
-                relevant_docs.append(doc)
+        # if RAG_MAP_REDUCE:
+        #     context = "Extracted documents:\n"
+        #     relevant_docs = []
+        #     res = await self.map_reduce.map(query=query, chunks=docs)
+        #     for synthesis, doc in res:
+        #         context += synthesis + "\n"
+        #         context += "-" * 40 + "\n"
+        #         relevant_docs.append(doc)
 
-            logger.debug(context)
-            docs = relevant_docs
+        #     logger.debug(context)
+        #     docs = relevant_docs
 
-        else:
-            # 3. Format the retrieved docs
-            context = format_context(docs)
+        # else:
+        #     # 3. Format the retrieved docs
+        #     context = format_context(docs)
+
+        # 3. Format the retrieved docs
+        context = format_context(docs)
 
         # 4. prepare the output
         messages: list = copy.deepcopy(messages)
