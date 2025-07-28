@@ -48,3 +48,15 @@ dependencies = [
 dev = [
     "ruff>=0.11.0",
 ]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["openrag*"]
+exclude = ["tests*", "benchmarks*", "docs*", "extern*", "model_weights*", "prompts*", "public*", "ray-cluster*", "utility*", "vdb*"]
+
+[tool.setuptools.package-data]
+openrag = ["**/*.txt", "**/*.yaml", "**/*.yml"]
