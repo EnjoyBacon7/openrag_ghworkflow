@@ -28,7 +28,7 @@ jobs:
 
       - name: Install UV and build tools
         run: |
-          pip install uv build
+          pip install uv build setuptools-scm
 
       - name: Install dependencies
         run: |
