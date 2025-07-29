@@ -201,7 +201,7 @@ EMBEDDER_API_KEY=EMPTY
 # EMBEDDER_BASE_URL=http://vllm:8000/v1
 
 # RERANKER
-RERANKER_ENABLED=true
+RERANKER_ENABLED=truqsdf
 RERANKER_MODEL=Alibaba-NLP/gte-multilingual-reranker-base
 RERANKER_TOP_K=5 # Number of documents to return after reranking. increment it for better results if your llm has a wider context window
 
