@@ -1,6 +1,6 @@
 [project]
 name = "openrag"
-dynamic = ["version"]
+version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -48,21 +48,3 @@ dependencies = [
 dev = [
     "ruff>=0.11.0",
 ]
-
-[build-system]
-requires = ["setuptools>=61.0", "wheel", "setuptools-scm>=8.0"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools_scm]
-# This will use Git tags for versioning
-version_scheme = "python-simplified-semver"
-local_scheme = "no-local-version"
-fallback_version = "0.1.0"
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["openrag*"]
-exclude = ["tests*", "benchmarks*", "docs*", "extern*", "model_weights*", "prompts*", "public*", "ray-cluster*", "utility*", "vdb*"]
-
-[tool.setuptools.package-data]
-openrag = ["**/*.txt", "**/*.yaml", "**/*.yml"]
